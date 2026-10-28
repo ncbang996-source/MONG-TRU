@@ -57,7 +57,21 @@ def default_params() -> dict:
         "COVER": 0.05, "COVER_B": 0.05,
         # khung tên
         "MABV": "",
+        "PIT_DRAW": 0.0,    # trình bày hố đào trên hình: 0 = tự động (theo cách tính), 1 = đào chung, 2 = đào riêng
     }
+
+
+# thông số không có trong Excel: giữ lại khi mở file Excel khác
+KEEP_KEYS = ("MABV", "PIT_DRAW")
+PIT_DRAW_NAMES = ["Tự động", "Đào chung 1 hố", "Đào riêng từng trụ"]
+
+
+def fresh_params(prev: dict | None = None) -> dict:
+    """Nền khi mở file Excel mới: thông số mặc định + các thông số không có trong Excel của lần trước."""
+    p = default_params()
+    if prev:
+        p.update({k: prev[k] for k in KEEP_KEYS if k in prev})
+    return p
 
 
 def type_name(p: dict) -> str:
@@ -143,6 +157,8 @@ def read_excel(path: str, sheet: str = "TONG HOP", p: dict | None = None) -> tup
         v = val(a)
         if _num(v) and v > 0:
             p[k] = float(v) / 1000.0
+        else:
+            warn.append(f"Ô {a} (lớp bảo vệ) không có số, giữ giá trị {p[k] * 1000:g} mm.")
     v = val(CELL_RLAYERS)
     if v not in (None, ""):
         try:
@@ -154,9 +170,13 @@ def read_excel(path: str, sheet: str = "TONG HOP", p: dict | None = None) -> tup
     v = val(CELL_NPIER)
     if _num(v) and v > 0:
         p["NPIER"] = float(v)
+    else:
+        warn.append(f"Ô {CELL_NPIER} (số trụ móng) không có số, giữ giá trị {p['NPIER']:g}.")
     v = val(CELL_DP)
     if _num(v) and v >= 0:
         p["DP"] = float(v)
+    else:
+        warn.append(f"Ô {CELL_DP} (dự phòng thép) không có số, giữ giá trị {p['DP']:g}%.")
     close()
     if nread == 0:
         raise ValueError("Không đọc được số liệu nào từ sheet. Kiểm tra lại địa chỉ ô.")
@@ -330,7 +350,6 @@ def warnings(p) -> list:
 # vùng giấy tờ 1 dành cho mặt cắt A-A + mặt bằng (mm), xem sheet1.layout
 PAPER_W = 182.0          # bề rộng mặt cắt A-A (miệng hố)
 PAPER_H = 182.0          # tổng chiều cao mặt cắt (H + lót) + mặt bằng (Bt + Bm + 2 lót)
-DEN_MAX = 100            # tỷ lệ nhỏ nhất tự chọn trước khi thu gọn khoảng cách tim trụ
 
 
 def draw_bt(p, den) -> float:
@@ -346,22 +365,30 @@ def draw_bt(p, den) -> float:
 
 
 def auto_scale(p) -> int:
-    """Tỷ lệ mặt cắt A-A và mặt bằng (tờ 1): lớn nhất mà vẽ đúng tỷ lệ; nếu phải nhỏ hơn 1/100 thì giữ 1/100
-    (hoặc tỷ lệ đầu tiên đủ chỗ) và thu gọn khoảng cách tim trụ."""
+    """Tỷ lệ mặt cắt A-A và mặt bằng (tờ 1): tỷ lệ lớn nhất trong SCALES vẽ được đúng tỷ lệ (không thu gọn
+    khoảng cách tim trụ). Nếu 1/250 vẫn không đủ chỗ thì dùng 1/250 và thu gọn khoảng cách tim trụ (draw_bt)."""
     for d in SCALES:
         if draw_bt(p, d) >= p["BT"] - 1e-9:
-            return d
-    for d in SCALES:
-        if d < DEN_MAX:
-            continue
-        k = 1000.0 / d
-        bt = draw_bt(p, d)
-        side = SLOPE_DRAW * pit_depth(p)
-        if k * (bt + p["B"] + 2 * p["MPIT"] + 2 * side) <= PAPER_W + 1e-6 and \
-                k * (H(p) + TL + bt + p["B"] + 2 * ML) <= PAPER_H + 1e-6:
             return d
     return SCALES[-1]
 
 
+def pit_joint_draw(p) -> bool:
+    """Hố đào THỂ HIỆN trên hình: theo lựa chọn PIT_DRAW, mặc định theo cách tính khối lượng (pit_joint).
+    Không ảnh hưởng khối lượng đào / đắp."""
+    m = int(p.get("PIT_DRAW", 0) or 0)
+    return pit_joint(p) if m == 0 else m == 1
+
+
+def is_tkkt(p) -> bool:
+    return "TKKT" in str(p.get("GD", "")).upper()
+
+
 def is_detail(p) -> bool:
-    return "BVTC" in str(p.get("GD", "")).upper()
+    """Có tờ cốt thép (tờ 2): TKBVTC và TKKT. TKKT không có bảng thống kê thép, tag không ghi số hiệu."""
+    gd = str(p.get("GD", "")).upper()
+    return "BVTC" in gd or "TKKT" in gd
+
+
+def n_sheets(p) -> int:
+    return 2 if is_detail(p) else 1

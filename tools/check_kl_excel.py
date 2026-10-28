@@ -68,5 +68,26 @@ for nm, g in geos.items():
         if abs(vals.get(key, 1e9) - v) > max(0.01, 0.0005 * v):
             bad += 1
             print(f"[{nm}] {key}: Excel {vals.get(key)} - chương trình {v:.3f}")
-print("Số lỗi:", bad, "/", len(CASES), "bộ thông số")
+# đổi Ø thanh chống ở THONG SO sang Ø14 (không có lúc xuất): phân loại có dòng Ø14, TONG KE báo xuất lại
+src = os.path.join(OUT, "mau.xlsx")
+wb = openpyxl.load_workbook(src)
+ws = wb["THONG SO"]
+for r in range(1, ws.max_row + 1):
+    if ws.cell(r, 3).value == "dch":
+        ws.cell(r, 4).value = 14
+wb.save(os.path.join(OUT, "doi_d.xlsx"))
+subprocess.run(["soffice", "--headless", "--calc", "--convert-to", "xlsx", "--outdir", calc,
+                os.path.join(OUT, "doi_d.xlsx")], capture_output=True, timeout=300)
+wb = openpyxl.load_workbook(os.path.join(calc, "doi_d.xlsx"), data_only=True)
+kl = wb["KHOI LUONG"]
+d14 = [kl.cell(r, 8).value for r in range(1, kl.max_row + 1) if kl.cell(r, 2).value == "Thép Ø14"]
+msg = wb["TONG KE"].cell(6, 1).value
+if not d14 or not d14[0] or msg != "Có đường kính mới - xuất lại file":
+    bad += 1
+    print("[doi_d] phân loại Ø14:", d14, "- cảnh báo TONG KE:", msg)
+msg0 = openpyxl.load_workbook(os.path.join(calc, "mau.xlsx"), data_only=True)["TONG KE"].cell(6, 1).value
+if msg0:
+    bad += 1
+    print("[mau] TONG KE báo sai:", msg0)
+print("Số lỗi:", bad, "/", len(CASES) + 1, "bộ thông số")
 sys.exit(1 if bad else 0)

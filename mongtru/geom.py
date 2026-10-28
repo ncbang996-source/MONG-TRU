@@ -150,9 +150,10 @@ class Geo:
         return d0, d0 + self.dt
 
     def hook_top(self):
-        """Chân móc 2 đầu thanh lớp trên (m), làm tròn lên 100."""
+        """Chân móc 2 đầu thanh lớp trên (m): hv − cv − cvb − 2(Ø dưới + Ø trên), làm tròn XUỐNG tới 5 mm
+        -> đầu móc luôn cao hơn mặt trên lưới dưới."""
         h = self.hv - self.cov - self.covb - 2 * (self.db + self.dt)
-        return max(0.1, 0.1 * ceil_(h / 0.1 - 1e-6))
+        return max(0.0, 0.005 * math.floor(h / 0.005 + 1e-6))
 
     def top_bar(self, a):
         """Thanh lớp trên nằm tại toạ độ ngang a: (nửa đoạn phẳng, chiều dài đoạn xiên mỗi bên).
@@ -185,7 +186,8 @@ class Geo:
         return [(x, y) for _, _, x, y in self.chair_grid()]
 
     def chair_body(self, x, y):
-        """Chiều cao thân thanh chống: h - 2 lớp bảo vệ - 2Ø (đỡ thanh ngoài cùng lớp dưới và lớp trên)."""
+        """Chiều cao thân thanh chống = chiều cao bản đế tại vị trí thanh − 2 lớp bê tông bảo vệ (cv + cvb)
+        − 2Ø (Ø lớp dưới + Ø lớp trên)."""
         return self.ztop(x, y) - self.cov - self.covb - self.db - self.dt
 
     # ---- cổ móng --------------------------------------------------------

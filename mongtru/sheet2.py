@@ -154,7 +154,7 @@ def pier_section(c: Ctx, g: Geo, co: Callouts, cx, ytop):
         c.txj("CHU", bx + 1.0, y5 + 0.8, 2.0, T_DAI, 0)
         c.txj("CHU", bx + 1.0, y5 - 2.8, 2.0, phi(p["RT_D"], p["RT_S"]), 0)
         from .view import balloon
-        for i, q in enumerate(nums):
+        for i, q in enumerate(nums if not co.nonum else []):
             balloon(c, xb + 6.6 * i, y5, g.sq(q))
     # 8: lưới đầu trụ
     zl = g.mesh_zs()
@@ -336,26 +336,31 @@ def mesh(c: Ctx, g: Geo, co: Callouts, cx, cy):
 def draw(c: Ctx, g: Geo):
     if not getattr(g, "kl", None):
         g.calc_kl()
-    co = Callouts(c, g)
+    tkkt = model.is_tkkt(g.p)               # TKKT: không có bảng thép, tag không ghi số hiệu
+    co = Callouts(c, g, nonum=tkkt)
     den = det_scale(g)
     k = 1000.0 / den
-    cx = 95.0
+    cx = 125.0 if tkkt else 95.0
     with c.group("pier", "Bố trí thép trụ"):
         pier_section(c, g, co, cx, 276.0)
     ytop = 276.0 - 14.0 - k * (model.TL + 0.0) - 28.0 - k * g.H
     with c.group("plan", "Thép bản đế"):
         slab_plan(c, g, co, cx, ytop - 10.0 - k * (g.Bh + model.ML), den)
     hp = 1000.0 / pier_scale(g) * g.bb / 2
-    xm = 205.0
+    xm = 285.0 if tkkt else 205.0
     y11 = 262.0 - hp
     with c.group("sec11", "Mặt cắt 1-1"):
         col_section(c, g, co, xm, y11)
     ym = y11 - hp - 30.0 - hp
     with c.group("mesh", "Lưới thép đầu trụ"):
         mesh(c, g, co, xm, ym)
+    note = ["- XEM GHI CHÚ CHUNG TẠI BẢN VẼ SỐ: " + str(g.p.get("CODE", "")),
+            "- KÍCH THƯỚC GHI TRÊN BẢN VẼ TÍNH BẰNG mm."]
+    if tkkt:
+        note_at(c, 268.0, 90.0, note)
+        return
     ytb = tables.steel_table(c, g, XT, 280.0, 120.0)
-    note_at(c, XT, ytb - 10.0, ["- XEM GHI CHÚ CHUNG TẠI BẢN VẼ SỐ: " + str(g.p.get("CODE", "")),
-                              "- KÍCH THƯỚC GHI TRÊN BẢN VẼ TÍNH BẰNG mm."])
+    note_at(c, XT, ytb - 10.0, note)
     yy = ym - hp - 24.0
     x0 = XT - 5.0 - sum(tables.BT_CW)
     for pos in (2, 3):

@@ -263,8 +263,9 @@ def balloon(c: Ctx, x, y, num):
 class Callouts:
     """Chú thích số hiệu thép: các nhánh tới mục tiêu -> đoạn ngang -> vòng tròn số."""
 
-    def __init__(self, c: Ctx, g):
+    def __init__(self, c: Ctx, g, nonum=False):
         self.c, self.g = c, g
+        self.nonum = nonum          # True: không vẽ vòng số hiệu (TKKT)
 
     def __call__(self, targets, bx, by, side, num, txt1, txt2=None, tick=True, mode=False):
         with self.c.item(f"callout{num}", f"Chú thích thép {self.g.sq(num)}"):
@@ -330,5 +331,6 @@ class Callouts:
         c.txj("CHU", tx, by + 0.8, 2.0, txt1, 2 if side > 0 else 0)
         if txt2:
             c.txj("CHU", tx, by - 2.8, 2.0, txt2, 2 if side > 0 else 0)
-        balloon(c, bx, by, self.g.sq(num))
+        if not self.nonum:
+            balloon(c, bx, by, self.g.sq(num))
         return min(ex, bx - 3.0), max(ex, bx + 3.0)

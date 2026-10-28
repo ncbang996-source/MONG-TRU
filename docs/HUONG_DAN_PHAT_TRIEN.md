@@ -214,7 +214,15 @@ Nguyên tắc:
 - Excel khối lượng: bê tông / đất / ván khuôn và cả thép đều là công thức theo `TS_...`. Thép lớp trên và thanh
   chống (dài từng thanh khác nhau) tính tổng bằng `SUMPRODUCT` trên dãy `ROW(OFFSET(...))` / `COLUMN(OFFSET(...))`,
   ghi chiều dài trung bình. Đai phụ cổ móng tra bảng `TS_DPC`. Kiểm tra bằng `tools/check_kl_excel.py`.
-- Tờ 1: Bt lớn không vừa khổ giấy thì thu gọn khoảng cách trụ trên hình (`model.draw_bt`), chữ dim ghi giá trị thật.
+- Tờ 1: `model.auto_scale` chọn tỷ lệ lớn nhất trong `SCALES` vẽ đúng tỷ lệ; chỉ khi 1/250 vẫn không đủ (hoặc người
+  dùng chọn tỷ lệ lớn hơn) thì thu gọn khoảng cách trụ trên hình (`model.draw_bt`), chữ dim ghi giá trị thật.
+- Trình bày hố đào trên hình (`PIT_DRAW`, `model.pit_joint_draw`) tách khỏi cách tính khối lượng (`model.pit_joint`).
+- Móc 2 đầu thép lớp trên: hv − cv − cvb − 2(Ø dưới + Ø trên), làm tròn xuống 5 mm (Excel: `ROUNDDOWN(x/0,005)`).
+- Thanh chống: thân = chiều cao bản đế tại vị trí thanh − (cv + cvb) − (Ø lớp dưới + Ø lớp trên).
+- TKKT ra 2 tờ như TKBVTC nhưng tờ 2 không có bảng thép, tag không ghi số hiệu (`Callouts(nonum=True)`).
+- Mở file Excel: nền `model.fresh_params()` (mặc định + `KEEP_KEYS`), tỷ lệ luôn tự chọn lại.
+- Giao diện: bộ đếm `App.ver` tăng mỗi lần sửa số liệu / dịch chuyển / đổi khung tên; bản dựng chỉ được coi là mới
+  nếu bộ đếm không đổi trong lúc dựng, nút Xuất chờ lượt dựng đang chạy rồi kiểm tra lại.
 - Đai cổ móng: số đai trên cùng = số lớp lưới đầu trụ (đặt dưới từng lớp lưới, cách theo bước lưới), còn lại @ đai.
 - Đai phụ, đai bát giác, neo chân thép chủ 500: như app móng bản có dầm.
 - Dự phòng thép (ô H29) chỉ cộng vào bảng tổng kê và Excel khối lượng.

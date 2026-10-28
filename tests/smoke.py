@@ -46,3 +46,76 @@ for ov in (dict(BT=8.0), dict(RC_N=32, B1=1.2, B2=1.2, B=5.5, BT=8.06, H1=4.0, H
     export.pdf_bytes(r)
     view3d.Scene(Geo(q), quarter=True)
 print("OK - Excel khoi luong, TKCS, cac truong hop khac")
+
+# --- móc 2 đầu thép lớp trên: bội số 5 mm, đầu móc không thấp hơn mặt trên lưới dưới
+for hv in (0.25, 0.30, 0.35, 0.45):
+    q = dict(p, HV=hv, HB=max(p["HB"], hv + 0.2))
+    g2 = Geo(q)
+    hk = g2.hook_top()
+    assert abs(hk * 1000 / 5 - round(hk * 1000 / 5)) < 1e-6, (hv, hk)
+    z_end = g2.ztop(g2.Bh - g2.cov) - (g2.cov + g2.dt / 2) - hk        # đầu móc thanh ngoài cùng lớp trên
+    assert z_end >= g2.covb + 2 * g2.db - 1e-9, (hv, hk, z_end)
+    g2.calc_kl()
+    assert abs({r["pos"]: r for r in g2.kl}[2]["dims"][2] - 1000 * hk) < 1e-6
+
+# --- đọc 2 file liên tiếp: ô trống ở file 2 không giữ giá trị của file 1
+import openpyxl  # noqa: E402
+
+def make_xlsx(path, **cells):
+    src = openpyxl.Workbook()
+    ws = src.active
+    ws.title = "TONG HOP"
+    vals = {"B4": "ĐỠ", "C4": "D1", "C6": "TKBVTC", "J4": "B20", "J5": "B7.5", "B9": 2.7, "B10": 2.5, "B11": 0.5,
+            "B12": 3.2, "B13": 0.7, "B14": 0.7, "B15": 0.7, "B16": 0.3, "C18": 0.5, "C19": 0.3, "C20": "BLN-",
+            "D20": "M36-250", "H21": 12, "I21": 200, "H22": 12, "I22": 200, "H23": 12, "I23": 600, "C22": 50,
+            "C23": 50, "C24": 4, "H25": 20, "I25": 20, "H26": 8, "I26": 200, "H27": 8, "I27": 400, "H28": 8,
+            "I28": 100, "K28": "02 lớp", "H29": 10}
+    vals.update(cells)
+    for a, v in vals.items():
+        if v is not None:
+            ws[a] = v
+    src.save(path)
+
+f1, f2 = os.path.join(d, "f1.xlsx"), os.path.join(d, "f2.xlsx")
+make_xlsx(f1, C5="MT-FILE1", J6="MA-FILE1", C24=8, H29=5, B12=20.0, D20="M42-300")
+make_xlsx(f2, C5=None, J6=None)
+p1, _ = model.read_excel(f1, "TONG HOP", model.fresh_params(dict(model.default_params(), MABV="X", PIT_DRAW=2.0)))
+p1["SCALE"] = model.auto_scale(p1)
+assert p1["TENMONG"] == "MT-FILE1" and p1["NPIER"] == 8 and p1["MABV"] == "X" and p1["PIT_DRAW"] == 2.0
+p2, _ = model.read_excel(f2, "TONG HOP", model.fresh_params(p1))
+p2["SCALE"] = model.auto_scale(p2)
+assert p2["TENMONG"] == "" and p2["CODE"] == "" and p2["NPIER"] == 4 and p2["DP"] == 10 and p2["BLN"] == "BLN-M36-250"
+assert p2["MABV"] == "X" and p2["PIT_DRAW"] == 2.0, p2
+assert p1["SCALE"] > p2["SCALE"], (p1["SCALE"], p2["SCALE"])          # mở file nhỏ sau file lớn: tỷ lệ đổi lại
+make_xlsx(f2, C22=None, C24=None, H29=None)
+_, w3 = model.read_excel(f2, "TONG HOP", model.fresh_params())
+assert any("C22" in w for w in w3) and any("C24" in w for w in w3) and any("H29" in w for w in w3), w3
+
+# --- tỷ lệ tờ 1: tỷ lệ lớn nhất vẽ đúng tỷ lệ (không thu gọn Bt)
+for bt in (3.2, 8.0, 15.0, 20.0):
+    q = dict(p, BT=bt)
+    den = model.auto_scale(q)
+    assert model.draw_bt(q, den) >= bt - 1e-9, (bt, den)
+    bigger = [s for s in model.SCALES if s < den]
+    assert not bigger or model.draw_bt(q, bigger[-1]) < bt - 1e-9, (bt, den)
+
+# --- trình bày hố đào: dựng được cả 3 lựa chọn (kể cả khi Bt bị thu gọn), khối lượng đào / đắp không đổi
+for ov in (dict(BT=3.2), dict(B=4.0, BT=7.5), dict(B=4.0, BT=7.5, SCALE=75)):
+    q0 = dict(p, **ov)
+    if "SCALE" not in ov:
+        q0["SCALE"] = model.auto_scale(q0)
+    vd, vp = model.vol_dao(q0), model.vol_dap(q0)
+    for m in (0.0, 1.0, 2.0):
+        q = dict(q0, PIT_DRAW=m)
+        export.pdf_bytes(export.build(q))
+        assert model.vol_dao(q) == vd and model.vol_dap(q) == vp
+        assert model.pit_joint_draw(q) == (model.pit_joint(q) if m == 0 else m == 1)
+    assert ov.get("SCALE") != 75 or model.draw_bt(q0, 75) < q0["BT"]     # trường hợp thu gọn Bt
+
+# --- TKKT: 2 tờ, không có bảng thống kê thép
+r = export.build(dict(p, GD="TKKT"))
+assert len(r.origins) == 2
+ids = {o.id for o in r.objs[1]}
+assert not any("table" in i or ".bar" in i for i in ids), ids
+assert any("table" in o.id for o in res.objs[1])
+print("OK - moc lop tren, doc 2 file, ty le, trinh bay ho dao, TKKT")

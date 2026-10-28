@@ -29,7 +29,7 @@ def layout(g: Geo):
     """Vị trí giấy của mặt cắt A-A và mặt bằng trên tờ 1."""
     p, k = g.p, g.k
     sl = model.SLOPE_DRAW
-    g.joint = model.pit_joint(p)
+    g.joint = model.pit_joint_draw(p)                         # trình bày hố đào (không ảnh hưởng khối lượng)
     g.btd = model.draw_bt(p, g.den)                           # khoảng cách tim trụ thể hiện (có thể thu gọn)
     g.squeezed = g.btd < g.bt - 1e-6
     base = p["B"] + 2 * p["MPIT"]

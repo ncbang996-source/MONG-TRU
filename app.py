@@ -17,7 +17,7 @@ from mongtru import _meta, cad, export, frame, kl_excel, model
 from mongtru.ui3d import View3D
 
 APP_NAME = "VE_MONGTRU"
-APP_VER = "1.0.0"
+APP_VER = "1.1.0"
 APP_DESC = "Móng trụ rời (4 trụ) cho móng cột đường dây cao thế bằng thép hình."
 
 
@@ -135,6 +135,7 @@ class App(tk.Tk):
         self.zoom = None         # None = vừa khung
         self.busy = False
         self.dirty = True
+        self.ver = 0             # phiên bản số liệu: tăng mỗi lần sửa ô / dịch chuyển / đổi khung tên
         self.offsets: dict = load_layout(self.xls)   # dịch chuyển đã lưu {id: [dx, dy]} (mm giấy)
         self.pending: dict = {}      # dịch chuyển chưa dựng lại
         self._drag = None
@@ -410,9 +411,11 @@ class App(tk.Tk):
         head("2. Kích thước")
         for k, lbl in DIM_FIELDS:
             row(lbl, k, 8)
-            if k == "MPIT":              # cách đào hố ngay dưới dòng mở rộng đáy hố đào
+            if k == "MPIT":              # trình bày hố đào + cách đào (tính khối lượng) ngay dưới mở rộng đáy hố đào
+                cb = row("Trình bày hố đào (hình vẽ)", "PIT_DRAW", 20, values=model.PIT_DRAW_NAMES)
+                cb.configure(state="readonly")
                 self.l_pit = ttk.Label(body, text="", style="Sub.TLabel")
-                self.l_pit.grid(row=r, column=1, columnspan=3, sticky="w")
+                self.l_pit.grid(row=r, column=0, columnspan=4, sticky="w", padx=(10, 0))
                 r += 1
         head("3. Cốt thép (mm)")
         ttk.Label(body, text="Ø").grid(row=r, column=1, sticky="w")
@@ -446,6 +449,8 @@ class App(tk.Tk):
         for k, v in self.vars.items():
             if k == "HT":
                 v.set(["Đỡ", "Néo", "Néo dừng"][int(p["HT"])])
+            elif k == "PIT_DRAW":
+                v.set(model.PIT_DRAW_NAMES[int(p.get("PIT_DRAW", 0) or 0) % 3])
             elif k in ("COVER", "COVER_B"):
                 v.set(f"{p[k] * 1000:g}")
             elif k in ("SCALE",):
@@ -465,6 +470,8 @@ class App(tk.Tk):
             s = v.get().strip()
             if k == "HT":
                 p["HT"] = {"đỡ": 0, "néo": 1, "néo dừng": 2}.get(s.lower(), model.ht_from_string(s))
+            elif k == "PIT_DRAW":
+                p[k] = float(model.PIT_DRAW_NAMES.index(s)) if s in model.PIT_DRAW_NAMES else 0.0
             elif k in ("COVER", "COVER_B"):
                 p[k] = float(s.replace(",", ".")) / 1000.0
             elif k == "SCALE":
@@ -475,10 +482,15 @@ class App(tk.Tk):
                 p[k] = s
         return p
 
+    def _bump(self):
+        """Số liệu / bố trí đã thay đổi: bản vẽ hiện có không còn mới."""
+        self.ver += 1
+        self.dirty = True
+
     def _changed(self):
         if getattr(self, "_filling", False):
             return
-        self.dirty = True
+        self._bump()
         self._update_info()
         if self.v_auto.get():
             if self._job:
@@ -501,8 +513,14 @@ class App(tk.Tk):
         err = model.validate(p)
         warn = [] if err else model.warnings(p)
         self._set_err(f"[!] {err}" if err else "   ".join(f"[Cảnh báo] {w}" for w in warn))
-        self.l_pit.config(text="" if err else
-                          "Hố đào: " + ("đào chung 1 hố cho 4 trụ" if model.pit_joint(p) else "đào riêng từng trụ"))
+        if err:
+            self.l_pit.config(text="")
+        else:
+            j, jd = model.pit_joint(p), model.pit_joint_draw(p)
+            txt = "Hố đào (tính khối lượng): " + ("đào chung 1 hố cho 4 trụ" if j else "đào riêng từng trụ")
+            if jd != j:
+                txt += "  (hình vẽ thể hiện: " + ("đào chung" if jd else "đào riêng") + ")"
+            self.l_pit.config(text=txt)
         return None if err else p
 
     def auto_scale(self):
@@ -524,13 +542,16 @@ class App(tk.Tk):
         if not path:
             return self.pick_excel()
         try:
-            p, warn = model.read_excel(path, "TONG HOP", self.p)
+            # nền là thông số mặc định: ô trống trong file mới không giữ giá trị của file trước;
+            # chỉ giữ các thông số không có trong Excel (mã số bản vẽ, tuỳ chọn trình bày)
+            p, warn = model.read_excel(path, "TONG HOP", model.fresh_params(self.p))
         except Exception as ex:
             messagebox.showerror(APP_NAME, f"Không đọc được file Excel:\n{ex}")
             return
-        if model.validate(p) is None and int(p["SCALE"]) < model.auto_scale(p):
-            p["SCALE"] = model.auto_scale(p)          # tỷ lệ hiện tại không đủ chỗ -> tự chọn
+        if model.validate(p) is None:
+            p["SCALE"] = model.auto_scale(p)          # mở file mới: luôn tự chọn tỷ lệ
         self.p, self.xls = p, path
+        self._bump()
         self.offsets = load_layout(path)
         self.pending = {}
         self._undo.clear()
@@ -552,6 +573,7 @@ class App(tk.Tk):
             messagebox.showerror(APP_NAME, f"Không nạp được khung tên:\n{ex}")
             return
         self.frame_path = f
+        self._bump()
         self._fill()
         msg = f"Đã nạp khung tên {os.path.basename(f)}."
         if tags:
@@ -593,6 +615,7 @@ class App(tk.Tk):
         self.busy = True
         self.l_state.config(text="Đang dựng bản vẽ...")
         self.config(cursor="watch")
+        v0 = self.ver
 
         def done(res, data, imgs, err):
             self.busy = False
@@ -602,7 +625,8 @@ class App(tk.Tk):
                 messagebox.showerror(APP_NAME, f"{err[0]}\n\n{err[1][-1500:]}")
                 return
             self.res, self.pdf, self.pages = res, data, imgs
-            self.dirty = data is None
+            # chỉ coi là bản mới nếu dựng đủ các tờ và số liệu không đổi trong lúc dựng
+            self.dirty = data is None or self.ver != v0
             self.pending = {}
             if self.l_msg.cget("text").startswith("Đã dịch chuyển"):
                 self.l_msg.config(text="")
@@ -610,11 +634,15 @@ class App(tk.Tk):
             self.cb_page.config(values=vals)
             self._show_page(min(self.page_i, len(imgs) - 1))
             self.l_state.config(text=f"{len(imgs)} tờ A3 - tỷ lệ 1/{res.geo.den}")
-        if only is not None and len(self.pages) != (2 if model.is_detail(p) else 1):
+        if only is not None and len(self.pages) != model.n_sheets(p):
             only = None
         self._render(p, done, only)
 
     def _ensure_fresh(self, then):
+        if self.busy:                              # đang dựng: chờ xong rồi kiểm tra lại
+            self.l_state.config(text="Đang dựng bản vẽ... (chờ để xuất)")
+            self.after(300, lambda: self._ensure_fresh(then))
+            return
         if self.pdf is not None and not self.dirty:
             return then()
         p = self._update_info()
@@ -623,13 +651,17 @@ class App(tk.Tk):
             return
         self.busy = True
         self.l_state.config(text="Đang dựng bản vẽ...")
+        v0 = self.ver
 
         def done(res, data, imgs, err):
             self.busy = False
             if err:
                 messagebox.showerror(APP_NAME, f"{err[0]}")
                 return
-            self.res, self.pdf, self.pages, self.dirty = res, data, imgs, False
+            self.res, self.pdf, self.pages = res, data, imgs
+            self.dirty = self.ver != v0
+            if self.dirty:                         # số liệu đổi trong lúc dựng -> dựng lại
+                return self._ensure_fresh(then)
             self.pending = {}
             self.cb_page.config(values=[f"Tờ {i + 1}" for i in range(len(imgs))])
             self._show_page(min(self.page_i, len(imgs) - 1))
@@ -971,7 +1003,7 @@ class App(tk.Tk):
         dst.append(copy.deepcopy(self.offsets))
         self.offsets = src.pop()
         self.pending = {}
-        self.dirty = True
+        self._bump()
         save_layout(self.xls, self.offsets)
         self.l_msg.config(text="Đã hoàn tác." if back else "Đã làm lại.")
         self.preview()
@@ -990,7 +1022,7 @@ class App(tk.Tk):
 
     def _layout_changed(self):
         """Dịch chuyển: dựng lại ngay tờ đang xem (phần đã kéo vẫn hiện ở vị trí mới trong lúc chờ)."""
-        self.dirty = True
+        self._bump()
         save_layout(self.xls, self.offsets)
         self.preview(only={self.page_i})
 
@@ -1107,6 +1139,7 @@ class FieldsDialog(tk.Toplevel):
             messagebox.showerror(APP_NAME, "Toạ độ / chiều cao phải là số.", parent=self)
             return
         self.app.fields = out
+        self.app._bump()
         self.destroy()
         self.app.dirty = True
         self.app.preview()

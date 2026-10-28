@@ -199,8 +199,8 @@ def export(p: dict, g: Geo, path: str):
     nf2, ns2 = zone("2", "TS_str", "Lớp trên")
     ee = line("", "Mút thanh lớp trên (tính từ tim)", "e", "=TS_Bm/2-TS_cv", "Bm/2 − cv", "m")
     hk2 = line("", "Chân móc 2 đầu thanh lớp trên", "hk2",
-               f"=MAX(0.1,ROUNDUP((TS_hv-TS_cv-TS_cvb-2*(TS_db+TS_dtr)/1000)/0.1-{E},0)*0.1)",
-               "hv − cv − cvb − 2(Ø dưới + Ø trên), làm tròn lên 100", "m")
+               f"=MAX(0,ROUNDDOWN((TS_hv-TS_cv-TS_cvb-2*(TS_db+TS_dtr)/1000)/0.005+{E},0)*0.005)",
+               "hv − cv − cvb − 2(Ø dưới + Ø trên), làm tròn xuống tới 5 mm (đầu móc cao hơn mặt trên lưới dưới)", "m")
     kv = line("", "Hệ số dài đoạn xiên", "kv", f"=SQRT(1+((TS_hb-TS_hv)/(TS_Bm/2-{pm}))^2)",
               "√(1 + ((hb − hv)/(Bm/2 − pm))²)", "")
     d0 = line("", "Đoạn xiên thanh trong vùng gờ", "d0", f"=({ee}-{pm})*{kv}", "(e − pm)·kv", "m")
@@ -223,7 +223,8 @@ def export(p: dict, g: Geo, path: str):
     sch = line("", "Tổng chiều cao thân thanh chống (1 trụ)", "Sch",
                f"=SUMPRODUCT(TS_hb-(TS_hb-TS_hv)*({R}>{pm})*({R}-{pm})/(TS_Bm/2-{pm}))"
                f"-{nch}^2*(TS_cv+TS_cvb+(TS_db+TS_dtr)/1000)",
-               "Σ [cao bản đế tại thanh − cv − cvb − Ø dưới − Ø trên]; cao bản đế theo max(|x|,|y|) của thanh", "m")
+               "Σ thân = cao bản đế tại vị trí thanh − 2 lớp bảo vệ (cv + cvb) − 2Ø (Ø lớp dưới + Ø lớp trên); "
+               "cao bản đế theo max(|x|,|y|) của thanh", "m")
     hh_ = line("", "Chiều cao toàn trụ", "H", "=TS_Hm+TS_d", "Hm + d", "m")
     z0 = line("", "Cao độ đai dưới lớp lưới đầu trụ thấp nhất", "z0",
               f"={hh_}-TS_cv-(TS_nl-1)*TS_sl/1000-2*TS_dl/1000", "H − cv − (số lớp − 1)·@lưới − 2Ø lưới", "m")
@@ -307,7 +308,7 @@ def export(p: dict, g: Geo, path: str):
     _cell(wk, r, 7, "Tổng dài (m)", bold=True, fill=HEAD)
     _cell(wk, r, 8, "KL (kg)", bold=True, fill=HEAD)
     rdia = {}
-    for d, _, _ in g.klc:
+    for d in sorted(KGM):                   # đủ các Ø trong bảng tra (đổi Ø ở THONG SO vẫn có dòng)
         r += 1
         rdia[int(d + 0.5)] = r
         _cell(wk, r, 2, f"Thép Ø{int(d + 0.5)}")
@@ -318,7 +319,8 @@ def export(p: dict, g: Geo, path: str):
     _cell(wk, r, 2, "Bu lông neo", bold=True)
     _cell(wk, r, 4, f"{model.bolt_text(p)}  ({p['BLN']})")
     wk.freeze_panes = "A4"
-    _summary(wb, p, rows, rdia, rtot)
+    used = sorted({int(d + 0.5) for d, _, _ in g.klc})
+    _summary(wb, p, rows, {d: rdia[d] for d in used if d in rdia}, rtot)
     wb.active = 0
     wb.save(path)
 
@@ -362,3 +364,9 @@ def _summary(wb, p, rows, rdia, rtot):
         _cell(ws, 3, j, f, fmt, align=Alignment(horizontal="center", vertical="center"))
     ws.cell(row=5, column=1, value=f"Khối lượng thép đã gồm {p.get('DP', 0):g}% dự phòng.").font = \
         Font(italic=True, color="808080")
+    # kiểm tra: đổi Ø ở THONG SO sang đường kính không có cột ở đây thì tổng các cột Ø lệch tổng thép
+    jd = [j for j, (h, _, _) in enumerate(cols, 1) if h.startswith("Ø")]
+    jt = next(j for j, (h, _, _) in enumerate(cols, 1) if h.startswith("TỔNG K.LƯỢNG THÉP"))
+    sm = "+".join(f"{L(j)}3" for j in jd) or "0"
+    c = ws.cell(row=6, column=1, value=f'=IF(ABS(({sm})-{L(jt)}3)>0.01,"Có đường kính mới - xuất lại file","")')
+    c.font = Font(bold=True, color="C00000")
