@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+build/
+dist/
+*.pdf
+/out*.dxf
+*.layout.json
+shots/

@@ -1,0 +1,344 @@
+"""Thông số móng trụ rời (4 trụ): giá trị mặc định, đọc Excel (sheet TONG HOP), kiểm tra, khối lượng.
+
+Mỗi chân cột có 1 trụ móng: bản đế vuông B x B (mặt trên vát từ hb ở gờ quanh cổ xuống hv ở mép), cổ móng
+b1 (đỉnh) / b2 (chân). 4 trụ đặt tại 4 góc hình vuông cạnh Bt (khoảng cách tim trụ).
+Khối lượng bê tông, lót, đào, đắp, ván khuôn theo công thức sheet "KL" của Excel mẫu."""
+from __future__ import annotations
+
+import math
+import re
+
+# ô Excel -> thông số (sheet TONG HOP)
+CELLS_NUM = {
+    "B": "B9",      # Bm = Lm: cạnh bản đế
+    "H1": "B10",    # Hm: chiều sâu chôn móng
+    "H2": "B11",    # d: cao cổ móng trên mặt đất
+    "BT": "B12",    # Bt: khoảng cách tim trụ
+    "B1": "B13",    # b1: cạnh cổ móng ở đỉnh
+    "B2": "B14",    # b2: cạnh cổ móng ở chân
+    "HB": "B15",    # hb: cao bản đế tại gờ cổ móng
+    "HV": "B16",    # hv: cao bản đế ở mép
+    "SLOPE": "C18", "MPIT": "C19",
+}
+CELLS_STR = {"GD": "C6", "COT": "C4", "TENMONG": "C5", "BTM": "J4", "BTL": "J5", "CODE": "J6"}
+CELL_HT = "B4"
+CELLS_BLN = ("C20", "D20")
+# cốt thép: (khoá, ô) - Ø, bước (mm), số thanh
+CELLS_REBAR = [
+    ("RB_BOT_D", "H21"), ("RB_BOT_S", "I21"), ("RB_TOP_D", "H22"), ("RB_TOP_S", "I22"),
+    ("RB_CH_D", "H23"), ("RB_CH_S", "I23"),
+    ("RC_D", "H25"), ("RC_N", "I25"), ("RT_D", "H26"), ("RT_S", "I26"),
+    ("RP_D", "H27"), ("RP_S", "I27"), ("RL_D", "H28"), ("RL_S", "I28"),
+]
+CELLS_COVER = {"COVER_B": "C22", "COVER": "C23"}   # mm trong Excel -> m
+CELL_RLAYERS = "K28"                               # "02 lớp"
+CELL_NPIER = "C24"                                 # số trụ móng
+CELL_DP = "H29"                                    # dự phòng thép (%)
+
+HT_NAMES = ["ĐỠ", "NÉO", "NÉO DỪNG"]
+SCALES = [50, 75, 100, 125, 150, 200, 250]
+SLOPE_DRAW = 0.5          # hệ số mở mái THỂ HIỆN trên bản vẽ (C18 chỉ dùng tính khối lượng)
+TL = 0.1                  # dày bê tông lót (m)
+ML = 0.1                  # lót tràn ra mỗi bên (m)
+MPL = 0.1                 # gờ phẳng quanh chân cổ móng trên mặt bản đế (m)
+
+
+def default_params() -> dict:
+    return {
+        "B": 2.7, "H1": 2.5, "H2": 0.5, "BT": 3.2, "B1": 0.7, "B2": 0.7, "HB": 0.7, "HV": 0.3,
+        "SLOPE": 0.5, "MPIT": 0.3, "NPIER": 4.0, "DP": 10.0,
+        "HT": 0, "BLN": "BLN-M36-250", "GD": "TKBVTC", "TENMONG": "",
+        "SCALE": 100,
+        "BTM": "B20", "BTL": "B7.5",
+        "COT": "D112-30", "CODE": "",
+        "RB_BOT_D": 12.0, "RB_BOT_S": 200.0, "RB_TOP_D": 12.0, "RB_TOP_S": 200.0,
+        "RB_CH_D": 12.0, "RB_CH_S": 600.0,
+        "RC_D": 20.0, "RC_N": 20.0, "RT_D": 8.0, "RT_S": 200.0, "RP_D": 8.0, "RP_S": 400.0,
+        "RL_D": 8.0, "RL_S": 100.0, "RL_N": 2.0,
+        "COVER": 0.05, "COVER_B": 0.05,
+        # khung tên
+        "MABV": "",
+    }
+
+
+def type_name(p: dict) -> str:
+    if p.get("TENMONG"):
+        return p["TENMONG"]
+    return f"MT{p['BT'] * 10:.1f} 4T{p['B'] * 10:.0f}-{H(p) * 10:.0f}"
+
+
+def ht_from_string(s: str) -> int:
+    u = s.upper()
+    if "DỪNG" in u or "DUNG" in u:
+        return 2
+    if "NÉO" in u or "NEO" in u or "GÓC" in u or "GOC" in u:
+        return 1
+    return 0
+
+
+def _num(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def _open_sheet(path: str, sheet: str):
+    """Trả về hàm đọc ô theo địa chỉ ("B9") của sheet; hỗ trợ .xlsx/.xlsm (openpyxl) và .xls (xlrd)."""
+    if path.lower().endswith(".xls"):
+        import xlrd
+        wb = xlrd.open_workbook(path)
+        if sheet not in wb.sheet_names():
+            raise ValueError(f'Không tìm thấy sheet "{sheet}" trong file Excel.')
+        ws = wb.sheet_by_name(sheet)
+
+        def val(a):
+            m = re.fullmatch(r"([A-Z]+)(\d+)", a)
+            col = 0
+            for ch in m.group(1):
+                col = col * 26 + ord(ch) - 64
+            r, c = int(m.group(2)) - 1, col - 1
+            if r >= ws.nrows or c >= ws.ncols:
+                return None
+            cell = ws.cell(r, c)
+            if cell.ctype in (xlrd.XL_CELL_EMPTY, xlrd.XL_CELL_BLANK, xlrd.XL_CELL_ERROR):
+                return None
+            return cell.value
+        return val, lambda: None
+    import openpyxl
+    wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
+    if sheet not in wb.sheetnames:
+        raise ValueError(f'Không tìm thấy sheet "{sheet}" trong file Excel.')
+    ws = wb[sheet]
+    return (lambda a: ws[a].value), wb.close
+
+
+def read_excel(path: str, sheet: str = "TONG HOP", p: dict | None = None) -> tuple[dict, list[str]]:
+    """Đọc sheet TONG HOP. Trả về (thông số, danh sách cảnh báo)."""
+    p = dict(p or default_params())
+    warn: list[str] = []
+    val, close = _open_sheet(path, sheet)
+
+    nread = 0
+    for k, a in CELLS_NUM.items():
+        v = val(a)
+        if _num(v):
+            p[k] = float(v)
+            nread += 1
+        else:
+            warn.append(f"Ô {a} ({k}) không có số, giữ giá trị {p[k]:g}.")
+    for k, a in CELLS_STR.items():
+        v = val(a)
+        if v not in (None, ""):
+            p[k] = str(v).strip()
+    v = val(CELL_HT)
+    if isinstance(v, str):
+        p["HT"] = ht_from_string(v)
+    bln = "".join(str(val(a) or "").strip() for a in CELLS_BLN)
+    if bln:
+        p["BLN"] = bln
+    for k, a in CELLS_REBAR:
+        v = val(a)
+        if _num(v) and v > 0:
+            p[k] = float(v)
+        else:
+            warn.append(f"Ô {a} ({k}) không có số, giữ giá trị {p[k]:g}.")
+    for k, a in CELLS_COVER.items():
+        v = val(a)
+        if _num(v) and v > 0:
+            p[k] = float(v) / 1000.0
+    v = val(CELL_RLAYERS)
+    if v not in (None, ""):
+        try:
+            n = int(v) if _num(v) else int("".join(c for c in str(v) if c.isdigit()) or 0)
+            if n > 0:
+                p["RL_N"] = float(n)
+        except ValueError:
+            pass
+    v = val(CELL_NPIER)
+    if _num(v) and v > 0:
+        p["NPIER"] = float(v)
+    v = val(CELL_DP)
+    if _num(v) and v >= 0:
+        p["DP"] = float(v)
+    close()
+    if nread == 0:
+        raise ValueError("Không đọc được số liệu nào từ sheet. Kiểm tra lại địa chỉ ô.")
+    return p, warn
+
+
+def H(p):
+    return p["H1"] + p["H2"]
+
+
+def npier(p) -> int:
+    return int(round(p.get("NPIER", 4)))
+
+
+# ---------------------------------------------------------------------------
+# khối lượng (sheet "KL"), cho cả móng (NPIER trụ)
+def _frustum_sq(a, b, h):
+    """Thể tích chóp cụt đáy vuông cạnh a, b, cao h."""
+    return h * (a * a + b * b + a * b) / 3.0
+
+
+def vol_pad(p) -> float:
+    """Bản đế 1 trụ: phần đứng cao hv + phần vát (chóp cụt từ B lên gờ b2 + 2·mpl)."""
+    b, a = p["B"], p["B2"] + 2 * MPL
+    return b * b * p["HV"] + _frustum_sq(b, a, p["HB"] - p["HV"])
+
+
+def vol_col(p) -> float:
+    """Cổ móng 1 trụ (chóp cụt b2 -> b1) từ mặt gờ hb lên đỉnh."""
+    return _frustum_sq(p["B2"], p["B1"], H(p) - p["HB"])
+
+
+def b_at(p, z):
+    """Cạnh cổ móng tại cao độ z (tính từ đáy bản đế)."""
+    t = (z - p["HB"]) / max(1e-9, H(p) - p["HB"])
+    return p["B2"] + (p["B1"] - p["B2"]) * min(1.0, max(0.0, t))
+
+
+def vol_mong(p) -> float:
+    return npier(p) * (vol_pad(p) + vol_col(p))
+
+
+def vol_above(p) -> float:
+    """Thể tích cổ móng trên mặt đất (cả móng)."""
+    return npier(p) * _frustum_sq(b_at(p, p["H1"]), p["B1"], p["H2"])
+
+
+def vol_lot(p) -> float:
+    return npier(p) * (p["B"] + 2 * ML) ** 2 * TL
+
+
+def pit_depth(p) -> float:
+    return p["H1"] + TL
+
+
+def pit_joint(p) -> bool:
+    """True: đào chung 1 hố cho cả 4 trụ (miệng các hố riêng chạm nhau), False: đào từng trụ."""
+    gap = p["BT"] - 2 * (0.5 * p["B"] + p["MPIT"] + pit_depth(p) * p["SLOPE"])
+    return gap <= 0
+
+
+def pit_bottom(p) -> float:
+    """Cạnh đáy hố đào (m): hố chung hoặc hố từng trụ."""
+    base = p["B"] + 2 * p["MPIT"]
+    return base + p["BT"] if pit_joint(p) else base
+
+
+def _frustum_rect(h, u, v, w, x):
+    return h / 6 * (u * v + w * x + (u + w) * (v + x))
+
+
+def vol_dao(p) -> float:
+    a = pit_bottom(p)
+    t = a + 2 * pit_depth(p) * p["SLOPE"]
+    v1 = _frustum_rect(pit_depth(p), a, a, t, t)
+    n = npier(p)
+    return v1 * (n / 4.0 if pit_joint(p) else n)
+
+
+def vol_dap(p) -> float:
+    return vol_dao(p) - vol_lot(p) - (vol_mong(p) - vol_above(p))
+
+
+def area_vk(p) -> float:
+    """Ván khuôn: 4 mặt cổ móng + 4 mặt mép bản đế (mặt vát không ghép ván khuôn)."""
+    return npier(p) * (4 * p["B1"] * (H(p) - p["HB"]) + 4 * p["B"] * p["HV"])
+
+
+def den_bu(p) -> float:
+    """Cạnh đền bù (m): bao 4 trụ + 0.5 m mỗi bên."""
+    return p["BT"] + p["B"] + 1.0
+
+
+def bolt_dia(p) -> int:
+    m = re.search(r"M\s*(\d+)", str(p.get("BLN", "")))
+    return int(m.group(1)) if m else 36
+
+
+def bolt_gap(p, b) -> float:
+    """Khoảng cách giữa 2 bu lông 1 cụm (m): số sau dấu '-' của 'M36-250', không có thì theo cổ móng."""
+    m = re.search(r"M\s*\d+\s*-\s*(\d+)", str(p.get("BLN", "")))
+    if m:
+        return int(m.group(1)) / 1000.0
+    return 0.47 * b
+
+
+def bolt_text(p) -> str:
+    return f"{4 * npier(p)}M{bolt_dia(p)}"
+
+
+# ---------------------------------------------------------------------------
+def validate(p) -> str | None:
+    keys = ("B", "H1", "H2", "BT", "B1", "B2", "HB", "HV")
+    if min(p[k] for k in keys) < 1e-6:
+        return "Có kích thước <= 0. Kiểm tra lại các ô nhập."
+    if abs(p["B1"] - p["B2"]) > 1e-6:
+        return "Chương trình chưa hỗ trợ cổ móng vát (b1 khác b2)."
+    if p["SLOPE"] < 1e-6:
+        return "Hệ số mở mái phải > 0."
+    if p["MPIT"] < ML:
+        return "Mở rộng đáy hố đào phải >= lót ra mỗi bên (0.1 m)."
+    if p["HV"] > p["HB"]:
+        return "hv (cao mép bản đế) không được lớn hơn hb."
+    if p["HB"] >= p["H1"]:
+        return "Hm (chiều sâu chôn) phải lớn hơn hb."
+    if p["B"] < p["B2"] + 2 * MPL + 0.2:
+        return "Bm quá nhỏ so với cổ móng."
+    if p["BT"] < p["B"] + 0.1:
+        return "Khoảng cách tim trụ Bt phải lớn hơn cạnh bản đế Bm (các bản đế chồng nhau)."
+    n = npier(p)
+    if n < 4 or n % 4:
+        return "Số trụ móng phải là bội số của 4."
+    keys = ("RB_BOT_D", "RB_BOT_S", "RB_TOP_D", "RB_TOP_S", "RB_CH_D", "RB_CH_S", "RC_D",
+            "RT_D", "RT_S", "RP_D", "RP_S", "RL_D", "RL_S")
+    if min(p[k] for k in keys) < 1e-6:
+        return "Đường kính / khoảng cách thép phải > 0."
+    n = int(round(p["RC_N"]))
+    if n < 4 or n % 4:
+        return "Số thanh thép chủ cổ móng phải là bội số của 4 (>= 4)."
+    if p["RL_N"] < 1:
+        return "Số lớp lưới thép đầu trụ phải >= 1."
+    if p["COVER"] < 0 or p["COVER_B"] < 0:
+        return "Lớp BT bảo vệ không được âm."
+    if p.get("DP", 0) < 0:
+        return "Dự phòng thép không được âm."
+    return None
+
+
+GAP_MIN = 0.04      # khoảng hở ngang tối thiểu giữa các thanh thép chủ (m)
+
+
+def warnings(p) -> list:
+    """Cảnh báo (không chặn dựng bản vẽ)."""
+    out = []
+    try:
+        m = 1 + int(round(p["RC_N"])) // 4
+        d = p["RC_D"] / 1000.0
+        xi = p["B1"] / 2 - p["COVER"] - d / 2
+        if m > 1:
+            gap = 2 * xi / (m - 1) - d
+            if gap < GAP_MIN - 1e-9:
+                out.append(f"Khoảng hở thép chủ cổ móng {gap * 1000:.0f} mm < {GAP_MIN * 1000:.0f} mm.")
+        bg = bolt_gap(p, p["B1"])
+        if bg > p["B1"] - 0.1:
+            out.append(f"Cụm bu lông {bg * 1000:.0f} mm gần sát mép cổ móng {p['B1'] * 1000:.0f} mm.")
+    except (KeyError, TypeError, ValueError, ZeroDivisionError):
+        pass
+    return out
+
+
+def auto_scale(p) -> int:
+    """Tỷ lệ mặt cắt A-A và mặt bằng (tờ 1)."""
+    hp = 0.5 * pit_bottom(p) + SLOPE_DRAW * pit_depth(p)
+    wx = 2 * hp if pit_joint(p) else p["BT"] + 2 * hp
+    hy = H(p) + TL + p["BT"] + p["B"] + 2 * ML
+    k = min(225.0 / wx, 175.0 / hy)
+    for d in SCALES:
+        if 1000.0 / d <= k:
+            return d
+    return SCALES[-1]
+
+
+def is_detail(p) -> bool:
+    return "BVTC" in str(p.get("GD", "")).upper()
