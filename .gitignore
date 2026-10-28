@@ -6,3 +6,4 @@ dist/
 /out*.dxf
 *.layout.json
 shots/
+preview/
