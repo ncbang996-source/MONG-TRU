@@ -11,7 +11,7 @@ from .geom import Geo
 LAYER_UI = (("bt", "Bê tông", "#B0B660"), ("slab", "Thép bản đế", "#C81E28"), ("pier", "Thép cổ móng", "#DC5A14"),
             ("dai", "Đai cổ móng", "#2850E6"))
 VIEWS = (("Trục đo", None), ("Mặt bằng", (0.0, 90.0)), ("Chính diện", (0.0, 0.0)), ("Cạnh", (-90.0, 0.0)))
-ISO = {False: (-35.0, 28.0), True: (35.0, 26.0)}      # góc trục đo: toàn móng / cắt 1/4 (nhìn vào mặt cắt)
+ISO = {False: (-35.0, 28.0), True: (-35.0, 24.0)}      # góc trục đo: toàn móng / 1 trụ
 HINT = "Chuột trái: xoay  ·  Chuột phải / giữa: dịch  ·  Lăn chuột: phóng to, thu nhỏ  ·  Nhấp đúp: góc nhìn mặc định"
 
 
@@ -41,7 +41,7 @@ class View3D(ttk.Frame):
         ttk.Label(r1, text="PHẠM VI:", style="Sub.TLabel").pack(side="left", padx=(18, 6))
         self.v_q = tk.BooleanVar(value=False)
         ttk.Radiobutton(r1, text="Toàn móng", value=False, variable=self.v_q, command=self._scope).pack(side="left")
-        ttk.Radiobutton(r1, text="Cắt 1/4 trụ", value=True, variable=self.v_q, command=self._scope).pack(
+        ttk.Radiobutton(r1, text="1 trụ", value=True, variable=self.v_q, command=self._scope).pack(
             side="left", padx=(6, 0))
 
         r2 = ttk.Frame(self, padding=(8, 2, 8, 6))

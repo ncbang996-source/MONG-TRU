@@ -20,23 +20,31 @@ def fx(x, n):
     return f"{abs(x):.{n}f}"
 
 
+def bt_txt(g, add=0.0):
+    """Chữ kích thước liên quan khoảng cách tim trụ: giá trị thật khi hình bị thu gọn, '<>' khi vẽ đúng tỷ lệ."""
+    return f"{1000 * (g.bt + add):.0f}" if getattr(g, "squeezed", False) else "<>"
+
+
 def layout(g: Geo):
     """Vị trí giấy của mặt cắt A-A và mặt bằng trên tờ 1."""
     p, k = g.p, g.k
     sl = model.SLOPE_DRAW
     g.joint = model.pit_joint(p)
-    g.pitB = model.pit_bottom(p) / 2                          # nửa đáy hố (m)
+    g.btd = model.draw_bt(p, g.den)                           # khoảng cách tim trụ thể hiện (có thể thu gọn)
+    g.squeezed = g.btd < g.bt - 1e-6
+    base = p["B"] + 2 * p["MPIT"]
+    g.pitB = (base + g.btd if g.joint else base) / 2          # nửa đáy hố (m)
     g.pitT = g.pitB + sl * model.pit_depth(p)                 # nửa miệng hố (m)
-    g.pitX = 0.0 if g.joint else g.bt / 2                     # tim hố (m)
+    g.pitX = 0.0 if g.joint else g.btd / 2                     # tim hố (m)
     g.ext = g.pitX + g.pitT                                    # nửa bề rộng hình A-A (m)
-    g.cx = min(max(105.0, 60.0 + k * g.ext), XMAX - 12.0 - k * g.ext)
+    g.cx = min(max(105.0, 66.0 + k * g.ext), XMAX - 12.0 - k * g.ext)   # cao độ bên trái không ra ngoài khung
     g.ytop = 262.2
     g.ybase = g.ytop - k * g.H
     g.ygl = g.ybase + k * p["H1"]
     g.ylt = g.ybase - k * model.TL
     g.yd = g.ylt - 10.4
     g.planTop = g.yd - 24.0
-    g.cy = g.planTop - k * (g.bt / 2 + g.Bh + model.ML)
+    g.cy = g.planTop - k * (g.btd / 2 + g.Bh + model.ML)
     g.xgl = g.cx - k * g.ext
     g.dimX1 = g.xgl - 21.0
     g.dimX2 = g.xgl - 13.2
@@ -69,32 +77,36 @@ def draw_section(c: Ctx, g: Geo):
     v = V(c, g.cx, g.ybase, g.den)
     cx = g.cx
     for s in (-1, 1):
-        pad_aa(v, g, s * g.bt / 2)
+        pad_aa(v, g, s * g.btd / 2)
     # hố đào
     ygl = g.ygl
     hp, ht = k * g.pitB, k * g.pitT
     pits = [0.0] if g.joint else [-g.pitX, g.pitX]
     for xp in pits:
         x0 = cx + k * xp
-        c.ln("HINH THUC", x0 - hp, g.ylt, x0 - ht, ygl)
-        c.ln("HINH THUC", x0 + hp, g.ylt, x0 + ht, ygl)
+        for sg in (-1, 1):
+            xe, ye = x0 + sg * ht, ygl
+            if not g.joint and sg * xp < 0 and sg * (xe - cx) > 0:     # 2 hố riêng: mái trong cắt nhau dưới mặt đất
+                t = (cx - (x0 + sg * hp)) / (sg * (ht - hp))
+                xe, ye = cx, g.ylt + t * (ygl - g.ylt)
+            c.ln("HINH THUC", x0 + sg * hp, g.ylt, xe, ye)
         c.ln("HINH THUC", x0 - hp, g.ylt, x0 + hp, g.ylt)
     # mặt đất (ngắt tại cổ móng)
     xs = [cx - k * g.ext - 8.0]
     for s in (-1, 1):
-        xs += [cx + k * (s * g.bt / 2 - g.bb / 2), cx + k * (s * g.bt / 2 + g.bb / 2)]
+        xs += [cx + k * (s * g.btd / 2 - g.bb / 2), cx + k * (s * g.btd / 2 + g.bb / 2)]
     xs.append(cx + k * g.ext + 8.0)
     for i in range(0, len(xs), 2):
         c.ln("HINH THUC", xs[i], ygl, xs[i + 1], ygl)
     # trục
     for s in (-1, 1):
-        c.ln("TRUC", cx + s * k * g.bt / 2, g.ytop + 4.3, cx + s * k * g.bt / 2, g.ylt - 2.2)
+        c.ln("TRUC", cx + s * k * g.btd / 2, g.ytop + 4.3, cx + s * k * g.btd / 2, g.ylt - 2.2)
     c.ln("TRUC", cx, g.ylt - 1.5, cx, g.ytop + 4.4)
     sym(c, cx, g.ytop - 0.5)
     ybt = g.ytop
     for s in (-1, 1):
-        ybt = bolts_aa(c, g, cx + s * k * g.bt / 2)
-    xb = cx + k * g.bt / 2 + k * model.bolt_gap(p, g.bb) / 2 + 1.1
+        ybt = bolts_aa(c, g, cx + s * k * g.btd / 2)
+    xb = cx + k * g.btd / 2 + k * model.bolt_gap(p, g.bb) / 2 + 1.1
     yb = (g.ytop + ybt) / 2
     with c.item("bln", "Ghi chú bu lông"):
         c.ln("CHU", xb, yb, xb + 6.0, yb, fixed1=True)
@@ -105,12 +117,12 @@ def draw_section(c: Ctx, g: Geo):
     elev(c, g.dimX2 - 5.4, g.ytop, f"+{fx(p['H2'], 2)}m")
     # ụ đất thừa đắp lại giữa 2 cổ móng
     pa = ygl + 3.1
-    sx = cx - k * (g.bt / 2 + g.Bh)
-    xi = cx - k * (g.bt / 2 + g.bb / 2)
+    sx = cx - k * (g.btd / 2 + g.Bh)
+    xi = cx - k * (g.btd / 2 + g.bb / 2)
     xa = min(sx + 3.2, xi - 0.5)
     c.ln("HINH THUC", sx, ygl, xa, pa)
     c.ln("HINH THUC", xa, pa, xi, pa)
-    c.ln("HINH THUC", cx - k * (g.bt / 2 - g.bb / 2), pa, cx + k * (g.bt / 2 - g.bb / 2), pa)
+    c.ln("HINH THUC", cx - k * (g.btd / 2 - g.bb / 2), pa, cx + k * (g.btd / 2 - g.bb / 2), pa)
     c.ln("HINH THUC", 2 * cx - sx, ygl, 2 * cx - xa, pa)
     c.ln("HINH THUC", 2 * cx - xa, pa, 2 * cx - xi, pa)
     xl = 0.5 * (sx + xi)
@@ -127,18 +139,17 @@ def draw_section(c: Ctx, g: Geo):
 
 
 def dim_section(c: Ctx, g: Geo):
-    p, k, cx = g.p, g.k, g.cx
+    k, cx = g.k, g.cx
     w100 = txtw("100", 2.0)
-    xa = g.xgl - 3.0
+    xa = g.dimX2 + 4.0          # đường gióng các kích thước đứng bên trái dừng tại đây
+    xl = cx - k * (g.btd / 2 + g.Bh)
     # trái: H1, H2 (ngoài); hv, hb - hv, H1 - hb, H2 (trong)
     c.dimV("DIM", (xa, g.ygl), (xa, g.ybase), g.dimX1)
     c.dimV("DIM", (xa, g.ygl), (xa, g.ytop), g.dimX1)
-    xl = cx - k * (g.bt / 2 + g.Bh)
     ys = [g.ybase, g.ybase + k * g.hv, g.ybase + k * g.hb, g.ygl, g.ytop]
-    xs = [xl, xl, cx - k * (g.bt / 2 + g.pm), xa, xa]
     for i in range(4):
         tp = (g.dimX2 - 2.0, g.ybase + k * (g.hv + g.hb) / 2 + 0.6) if i == 1 and k * (g.hb - g.hv) < w100 + 1 else None
-        c.dimV("DIM", (xs[i], ys[i]), (xs[i + 1], ys[i + 1]), g.dimX2, tp)
+        c.dimV("DIM", (xa, ys[i]), (xa, ys[i + 1]), g.dimX2, tp)
     # dày lót
     xd = cx - k * (g.pitX + g.pitB) - 4.0              # bên trái mép đáy hố, không đè nét mái hố
     c.dimV("DIM", (xl - k * model.ML, g.ybase), (xl - k * model.ML, g.ylt), xd,
@@ -146,7 +157,7 @@ def dim_section(c: Ctx, g: Geo):
     # dưới mặt cắt: lót, B, lót cho từng trụ; mép hố
     yb = g.ylt
     for s in (-1, 1):
-        x0 = cx + k * s * g.bt / 2
+        x0 = cx + k * s * g.btd / 2
         hl, hb_ = k * (g.Bh + model.ML), k * g.Bh
         c.dimH("DIM", (x0 - hb_, yb), (x0 + hb_, yb), g.yd)
         # chữ lót phía trong (giữa 2 trụ) đặt vào trong bản đế để không chồng chữ của trụ bên cạnh
@@ -156,23 +167,24 @@ def dim_section(c: Ctx, g: Geo):
         c.dimH("DIM", (x0 - hl, yb), (x0 - hb_, yb), g.yd, (tl_, g.yd + 2.0))
         c.dimH("DIM", (x0 + hb_, yb), (x0 + hl, yb), g.yd, (tr_, g.yd + 2.0))
     # mép hố ngoài cùng
-    hl = k * (g.bt / 2 + g.Bh + model.ML)
+    hl = k * (g.btd / 2 + g.Bh + model.ML)
     xp = k * (g.pitX + g.pitB)
     if xp - hl > 0.5:
-        w = txtw(f"{1000 * (g.pitX + g.pitB - g.bt / 2 - g.Bh - model.ML):.0f}", 2.0)
+        w = txtw(f"{1000 * (g.pitX + g.pitB - g.btd / 2 - g.Bh - model.ML):.0f}", 2.0)
         for s in (-1, 1):
             c.dimH("DIM", (cx + s * hl, yb), (cx + s * xp, yb), g.yd,
                    (cx + s * (xp + 1.0 + w / 2), g.yd + 2.0) if xp - hl < w + 1.0 else None)
     # trên: cổ móng, tim trụ
     y1, y2 = g.ytop + 6.0, g.ytop + 12.9
     for s in (-1, 1):
-        xc = s * g.bt / 2
+        xc = s * g.btd / 2
         c.dimH("DIM", (cx + k * (xc - g.bb / 2), g.ytop), (cx + k * (xc + g.bb / 2), g.ytop), y1)
-    c.dimH("DIM", (cx - k * (g.bt / 2 + g.Bh), g.ybase + k * g.hv), (cx - k * g.bt / 2, g.ytop + 4.3), y2)
-    c.dimH("DIM", (cx - k * g.bt / 2, g.ytop + 4.3), (cx + k * g.bt / 2, g.ytop + 4.3), y2)
-    c.dimH("DIM", (cx + k * g.bt / 2, g.ytop + 4.3), (cx + k * (g.bt / 2 + g.Bh), g.ybase + k * g.hv), y2)
+    # mép bản đế: đường gióng dừng ở mặt đất (cos 0.00)
+    c.dimH("DIM", (cx - k * (g.btd / 2 + g.Bh), g.ygl), (cx - k * g.btd / 2, g.ytop + 4.3), y2)
+    c.dimH("DIM", (cx - k * g.btd / 2, g.ytop + 4.3), (cx + k * g.btd / 2, g.ytop + 4.3), y2, text=bt_txt(g))
+    c.dimH("DIM", (cx + k * g.btd / 2, g.ytop + 4.3), (cx + k * (g.btd / 2 + g.Bh), g.ygl), y2)
     # gờ quanh cổ móng (trụ phải)
-    x0 = cx + k * g.bt / 2
+    x0 = cx + k * g.btd / 2
     yg = g.ybase + k * g.hb
     for s in (-1, 1):
         xe, xf = x0 + s * k * g.bb / 2, x0 + s * k * g.pm
@@ -241,7 +253,7 @@ def draw_route(c: Ctx, g: Geo, cx, cy, lh, lx):
 
 
 def plan_outline(c: Ctx, g: Geo, v: V, lot=True):
-    d = g.bt / 2
+    d = g.btd / 2
     for sx in (-1, 1):
         for sy in (-1, 1):
             pad_plan(c, g, v, sx * d, sy * d, lot)
@@ -254,7 +266,7 @@ def plan_outline(c: Ctx, g: Geo, v: V, lot=True):
 
 
 def dim_plan(c: Ctx, g: Geo, v: V, lot=True):
-    d, B, ml = g.bt / 2, g.Bh, (model.ML if lot else 0.0)
+    d, B, ml = g.btd / 2, g.Bh, (model.ML if lot else 0.0)
     w100 = txtw("100", 2.0)
     E = d + B + ml
     x0, y0 = v.x(-E), v.y(-E)
@@ -264,15 +276,15 @@ def dim_plan(c: Ctx, g: Geo, v: V, lot=True):
         if lot and i in (0, len(ys) - 2):
             yy = v.y(ys[i]) - 1.0 - w100 / 2 if i == 0 else v.y(ys[i + 1]) + 1.0 + w100 / 2
             tp = (x0 - 7.0 - 2.0, yy)
-        v.dimV((-E, ys[i]), (-E, ys[i + 1]), x0 - 7.0, tp)
-    v.dimV((-E, -d - B), (-E, d + B), x0 - 14.0)
+        v.dimV((-E, ys[i]), (-E, ys[i + 1]), x0 - 7.0, tp, text=bt_txt(g) if ys[i] == -d else "<>")
+    v.dimV((-E, -d - B), (-E, d + B), x0 - 14.0, text=bt_txt(g, g.B))
     for i in range(len(ys) - 1):
         tp = None
         if lot and i in (0, len(ys) - 2):
             xx = v.x(ys[i]) - 1.0 - w100 / 2 if i == 0 else v.x(ys[i + 1]) + 1.0 + w100 / 2
             tp = (xx, y0 - 7.0 + 2.0)
-        v.dimH((ys[i], -E), (ys[i + 1], -E), y0 - 7.0, tp)
-    v.dimH((-d - B, -E), (d + B, -E), y0 - 14.0)
+        v.dimH((ys[i], -E), (ys[i + 1], -E), y0 - 7.0, tp, text=bt_txt(g) if ys[i] == -d else "<>")
+    v.dimH((-d - B, -E), (d + B, -E), y0 - 14.0, text=bt_txt(g, g.B))
     # cổ móng + bản đế trụ trên phải
     bh = g.bb / 2
     v.dimH((d - bh, d + bh), (d + bh, d + bh), v.y(d + bh) + 3.5)
@@ -292,11 +304,11 @@ def draw_plan(c: Ctx, g: Geo):
         w = txtw(T_AXIS, 2.0)
         c.pl("CHU", False, [(cx, cy), (cx - 3.0, cy + sg * 4.7), (cx - 4.0 - w, cy + sg * 4.7)], fixed=(0,))
         c.tx("CHU", cx - 3.9 - w, cy + sg * 4.7 + 0.9, 2.0, T_AXIS)
-    gap = k * (g.bt / 2 - g.Bh)
-    draw_route(c, g, cx, cy, k * (g.bt / 2 + g.Bh), max(8.0, gap - 1.0))
-    E = g.bt / 2 + g.Bh + model.ML
+    gap = k * (g.btd / 2 - g.Bh)
+    draw_route(c, g, cx, cy, k * (g.btd / 2 + g.Bh), max(8.0, gap - 1.0))
+    E = g.btd / 2 + g.Bh + model.ML
     sym_r(c, v.x(-E) - 3.0, cy, 90.0)
-    ya = g.bt / 2
+    ya = g.btd / 2
     marker(c, v.x(-E) - 22.0, cy + k * ya, 1.0, "A")
     marker(c, v.x(E) + 14.0, cy + k * ya, -1.0, "A")
     dim_plan(c, g, v)

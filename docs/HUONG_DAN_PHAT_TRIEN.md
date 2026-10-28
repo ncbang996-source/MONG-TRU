@@ -211,8 +211,10 @@ Nguyên tắc:
 - Excel mẫu `samples/D112-30.xls` (đọc thẳng `.xls` bằng `xlrd`). Ô sheet `TONG HOP` xem README.
 - Khối lượng thép tính và trình bày như app móng bản không dầm: lớp trên uốn theo mặt vát và thanh chống có chiều
   dài từng thanh khác nhau → bảng thống kê ghi chiều dài trung bình (Ltb) + bảng kích thước từng thanh.
-- Excel khối lượng như app móng bản không dầm: bê tông / đất / ván khuôn là công thức theo `TS_...`; thép lấy
-  chiều dài, số thanh từ chương trình.
+- Excel khối lượng: bê tông / đất / ván khuôn và cả thép đều là công thức theo `TS_...`. Thép lớp trên và thanh
+  chống (dài từng thanh khác nhau) tính tổng bằng `SUMPRODUCT` trên dãy `ROW(OFFSET(...))` / `COLUMN(OFFSET(...))`,
+  ghi chiều dài trung bình. Đai phụ cổ móng tra bảng `TS_DPC`. Kiểm tra bằng `tools/check_kl_excel.py`.
+- Tờ 1: Bt lớn không vừa khổ giấy thì thu gọn khoảng cách trụ trên hình (`model.draw_bt`), chữ dim ghi giá trị thật.
 - Đai cổ móng: số đai trên cùng = số lớp lưới đầu trụ (đặt dưới từng lớp lưới, cách theo bước lưới), còn lại @ đai.
 - Đai phụ, đai bát giác, neo chân thép chủ 500: như app móng bản có dầm.
 - Dự phòng thép (ô H29) chỉ cộng vào bảng tổng kê và Excel khối lượng.

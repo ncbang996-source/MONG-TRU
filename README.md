@@ -10,9 +10,10 @@ App Windows chạy offline, vẽ nhanh bản vẽ **móng trụ rời 4 trụ** 
   - TKCS có 1 tờ: mặt cắt A-A (qua 2 trụ, hố đào, cao độ), mặt bằng móng 4 trụ, bảng tổng kê.
   - TKBVTC có 2 tờ.
     - Tờ 1/2: như TKCS.
-    - Tờ 2/2: bố trí thép trụ, thép bản đế (nửa trái lớp trên, nửa phải lớp dưới), mặt cắt cổ móng 1-1, lưới thép đầu trụ, bảng thống kê cốt thép, bảng kích thước từng thanh (thép lớp trên, thanh chống), bảng tổng kê.
-- **Xuất file:** PDF A3, AutoCAD DXF, Excel khối lượng (`_KL.xlsx`, gồm các sheet TONG KE, THONG SO, KHOI LUONG). Tên file xuất trùng tên file Excel.
-- **Mô hình 3D:** tab riêng, bê tông trong suốt, bật/tắt từng nhóm thép, cắt 1/4 trụ.
+    - Tờ 2/2: bố trí thép trụ, thép bản đế (nửa trái lớp trên, nửa phải lớp dưới), mặt cắt cổ móng 1-1, lưới thép đầu trụ, bảng thống kê cốt thép, bảng kích thước từng thanh (thép lớp trên, thanh chống).
+  - Khoảng cách tim trụ lớn không vừa khổ giấy: tờ 1 thu gọn khoảng cách giữa các trụ trên hình, chữ kích thước vẫn ghi giá trị thật. Tự chọn tỷ lệ không nhỏ hơn 1/100 trước khi thu gọn.
+- **Xuất file:** PDF A3, AutoCAD DXF, Excel khối lượng (`_KL.xlsx`, gồm các sheet TONG KE, THONG SO, KHOI LUONG). Tên file xuất trùng tên file Excel. Trong Excel, Ø, chiều dài và số lượng từng vị trí thép đều là công thức theo thông số (sheet THONG SO), có diễn giải: sửa thông số thì khối lượng tự tính lại.
+- **Mô hình 3D:** tab riêng, bê tông trong suốt, bật/tắt từng nhóm thép, xem toàn móng hoặc 1 trụ.
 - **Sắp xếp (kéo thả):** vị trí lưu vào `<tên Excel>.layout.json`.
 
 ## Ô đọc từ sheet TONG HOP
@@ -53,4 +54,5 @@ python app.py
 ## Công cụ
 - `python tools/render_preview.py [file.xls] [KEY=VAL ...] --out thư_mục`: render ảnh xem trước.
 - `python tests/smoke.py`: kiểm tra nhanh (đọc Excel mẫu, so khối lượng, dựng PDF/DXF/Excel).
+- `python tools/check_kl_excel.py`: đối chiếu công thức Excel khối lượng với chương trình qua LibreOffice (phải ra 0 lỗi).
 - Kiến trúc chung: xem [docs/HUONG_DAN_PHAT_TRIEN.md](docs/HUONG_DAN_PHAT_TRIEN.md) (viết cho app móng bản có dầm; package ở app này tên `mongtru`).

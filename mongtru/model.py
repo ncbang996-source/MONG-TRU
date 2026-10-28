@@ -5,7 +5,6 @@ b1 (đỉnh) / b2 (chân). 4 trụ đặt tại 4 góc hình vuông cạnh Bt (k
 Khối lượng bê tông, lót, đào, đắp, ván khuôn theo công thức sheet "KL" của Excel mẫu."""
 from __future__ import annotations
 
-import math
 import re
 
 # ô Excel -> thông số (sheet TONG HOP)
@@ -328,14 +327,38 @@ def warnings(p) -> list:
     return out
 
 
+# vùng giấy tờ 1 dành cho mặt cắt A-A + mặt bằng (mm), xem sheet1.layout
+PAPER_W = 182.0          # bề rộng mặt cắt A-A (miệng hố)
+PAPER_H = 182.0          # tổng chiều cao mặt cắt (H + lót) + mặt bằng (Bt + Bm + 2 lót)
+DEN_MAX = 100            # tỷ lệ nhỏ nhất tự chọn trước khi thu gọn khoảng cách tim trụ
+
+
+def draw_bt(p, den) -> float:
+    """Khoảng cách tim trụ THỂ HIỆN trên tờ 1 (m) ở tỷ lệ 1/den. Không đủ chỗ thì thu gọn (chữ kích thước vẫn
+    ghi giá trị thật), tối thiểu để 2 bản đế và 2 đáy hố đào không chồng nhau."""
+    k = 1000.0 / den
+    B, bt = p["B"], p["BT"]
+    side = SLOPE_DRAW * pit_depth(p)
+    w = PAPER_W / k - B - 2 * p["MPIT"] - 2 * side
+    h = PAPER_H / k - (H(p) + TL) - B - 2 * ML
+    lo = max(B + 0.6, B + 2 * p["MPIT"] + 0.2)
+    return min(bt, max(lo, min(w, h)))
+
+
 def auto_scale(p) -> int:
-    """Tỷ lệ mặt cắt A-A và mặt bằng (tờ 1)."""
-    hp = 0.5 * pit_bottom(p) + SLOPE_DRAW * pit_depth(p)
-    wx = 2 * hp if pit_joint(p) else p["BT"] + 2 * hp
-    hy = H(p) + TL + p["BT"] + p["B"] + 2 * ML
-    k = min(225.0 / wx, 175.0 / hy)
+    """Tỷ lệ mặt cắt A-A và mặt bằng (tờ 1): lớn nhất mà vẽ đúng tỷ lệ; nếu phải nhỏ hơn 1/100 thì giữ 1/100
+    (hoặc tỷ lệ đầu tiên đủ chỗ) và thu gọn khoảng cách tim trụ."""
     for d in SCALES:
-        if 1000.0 / d <= k:
+        if draw_bt(p, d) >= p["BT"] - 1e-9:
+            return d
+    for d in SCALES:
+        if d < DEN_MAX:
+            continue
+        k = 1000.0 / d
+        bt = draw_bt(p, d)
+        side = SLOPE_DRAW * pit_depth(p)
+        if k * (bt + p["B"] + 2 * p["MPIT"] + 2 * side) <= PAPER_W + 1e-6 and \
+                k * (H(p) + TL + bt + p["B"] + 2 * ML) <= PAPER_H + 1e-6:
             return d
     return SCALES[-1]
 

@@ -69,9 +69,10 @@ def pier_section(c: Ctx, g: Geo, co: Callouts, cx, ytop):
     for x in xt:
         v.disc("COTTHEP", x, zt(x, d1), rdt)
     # thanh chống (dãy gần tim nhất): thân đứng, 2 chân ngang
-    ch = g.chairs()
-    y0r = min(abs(y) for _, y in ch)
-    row = [(x, y) for x, y in ch if abs(abs(y) - y0r) < 0.03 and y > -1e-9]     # cả vị trí đã dời tránh thép chủ
+    cg = g.chair_grid()
+    nj = 1 + max(j for _, j, _, _ in cg)
+    jr = nj // 2                                       # hàng lưới gần tim nhất (phía +Y)
+    row = [(x, y) for _, j, x, y in cg if j == jr]
     chs = sorted(x for x, _ in row)
     ych = {x: y for x, y in row}
     zc0 = g.covb + g.db
@@ -86,19 +87,22 @@ def pier_section(c: Ctx, g: Geo, co: Callouts, cx, ytop):
         sg = 1.0 if u > 0 else -1.0
         v.pl("COTTHEP", False, [(u, z1), (u, z0), (u + sg * ANCHOR, z0)])
     wh = g.bb / 2 - cov
-    for z in g.hoop_zs():
-        v.ln("DAI", -wh, z, wh, z)
     rl = dot(p["RL_D"])
     hl = wh - g.g("RT_D") / 1000.0
     nd = ceil_(2 * hl / (p["RL_S"] / 1000.0) - 1e-6)
-    for z in g.mesh_zs():
-        v.ln("DAI", -hl, z, hl, z)
+    # lưới đầu trụ + đai đỡ từng lớp lưới: thể hiện tách nét (thanh, chấm, đai cách nhau tối thiểu trên giấy)
+    nm = len(g.mesh_zs())
+    for i, z in enumerate(g.mesh_zs()):
+        yl = v.y(z) - 0.35
+        c.ln("DAI", v.x(-hl), yl, v.x(hl), yl)
         for j in range(nd + 1):
-            v.disc("DAI", -hl + j * 2 * hl / nd, z - p["RL_D"] / 1000.0, rl)
+            c.disc("DAI", v.x(-hl + j * 2 * hl / nd), yl - rl - 0.3, rl)
+        yh = yl - 2 * rl - 0.9
+        c.ln("DAI", v.x(-wh), yh, v.x(wh), yh)
+    for z in g.hoop_zs()[nm:]:
+        v.ln("DAI", -wh, z, wh, z)
     bolts_aa(c, g, cx)
     # ---- chú thích
-    xr = v.x(B + model.ML) + 4.0
-    xl = v.x(-B - model.ML) - 4.0
     # 1, 2: thép 2 phương giống nhau -> 1 tag chỉ cả chấm tròn và thanh nằm ngang, đặt ở chỗ trống
     # (giữa đầu neo thép chủ / mép gờ và mép bản đế, tránh thanh chống)
     us0 = g.pier_us()[-1]
@@ -110,16 +114,17 @@ def pier_section(c: Ctx, g: Geo, co: Callouts, cx, ytop):
             return max(0, min(len(lst) - 2, len(lst) // 2 + 1))
         m = 0.5 * (lo + hi)
         return min(cand, key=lambda i: abs(0.5 * (lst[i] + lst[i + 1]) - m))
+    # 2 nhánh leader cách nhau 1 bước thép: chấm tại thanh i, thanh nằm ngang tại vị trí thanh i + 1
     i1 = free(xs, us0 + ANCHOR + 0.05, e)
-    co([v.P(xs[i1], zy), v.P(0.5 * (xs[i1] + xs[i1 + 1]), zx)], xr, v.y(-model.TL) - 11.0, 1, 1,
+    co([v.P(xs[i1], zy), v.P(xs[i1 + 1], zx)], v.x(xs[i1 + 1]) + 4.0, v.y(-model.TL) - 11.0, 1, 1,
        phi(p["RB_BOT_D"], p["RB_BOT_S"]), tick=False)
     j2 = free(xt, pm + 0.1, e - 0.05)
-    xa, xm2 = xt[j2], 0.5 * (xt[j2] + xt[j2 + 1])
-    co([v.P(xa, zt(xa, d1)), v.P(xm2, zt(xm2, d0))], xr, v.y(g.hb) + 4.0, 1, 2,
+    xa, xb2 = xt[j2], xt[j2 + 1]
+    co([v.P(xa, zt(xa, d1)), v.P(xb2, zt(xb2, d0))], v.x(pm) + 7.0, v.y(g.hb) + 4.0, 1, 2,
        phi(p["RB_TOP_D"], p["RB_TOP_S"]), tick=False)
-    # 3: thanh chống (bên trái)
+    # 3: thanh chống (bên trái), tag ngay dưới bản đế
     x3 = chs[0]
-    co([v.P(x3, zc0 + 0.5 * g.chair_body(x3, ych[x3]))], xl, v.y(-model.TL) - 11.0, -1, 3, T_CHONG,
+    co([v.P(x3, zc0 + 0.5 * g.chair_body(x3, ych[x3]))], v.x(x3) - 4.0, v.y(-model.TL) - 11.0, -1, 3, T_CHONG,
        phi(p["RB_CH_D"], p["RB_CH_S"]))
     # 4: thép chủ (bên phải cổ)
     xp = v.x(g.bb / 2) + 6.0
@@ -194,8 +199,8 @@ def slab_plan(c: Ctx, g: Geo, co: Callouts, cx, cy, den):
     e = B - cov
     v.ln("TRUC", -B - 0.25, 0.0, B + 0.25, 0.0)
     # trục đứng chia 2 nửa (lớp trên / lớp dưới) + ký hiệu đối xứng
-    ys0 = v.y(-B - model.ML) - 6.0                 # giữa 2 chữ LỚP TRÊN / LỚP DƯỚI
-    c.ln("TRUC", v.x(0.0), v.y(B + 0.25), v.x(0.0), ys0 - 2.5)
+    ys0 = v.y(B + model.ML) + 2.5                  # ký hiệu đối xứng ở đầu trên trục đứng
+    c.ln("TRUC", v.x(0.0), v.y(-B - 0.25), v.x(0.0), ys0 + 3.5)
     sym(c, v.x(0.0), ys0)
 
     def pick(lst, lo, hi, tgt):
@@ -207,7 +212,7 @@ def slab_plan(c: Ctx, g: Geo, co: Callouts, cx, cy, den):
     x1 = pick(xb, g.pm, e, 0.62 * B)
     v.ln("COTTHEP", x1, -e, x1, e)
     y1 = pick(xb, g.pm, e, 0.8 * B)
-    v.ln("COTTHEP", 0.06, y1, e, y1)
+    v.ln("COTTHEP", 0.0, y1, e, y1)
     # lớp trên (trái): như app móng bản không dầm - đoạn xiên theo mặt vát vẽ lệch về góc, móc 100 ở đầu
     hk, pm = 0.1, g.pm
     x2 = pick([-x for x in xt], -e, -pm, -0.62 * B)
@@ -219,20 +224,20 @@ def slab_plan(c: Ctx, g: Geo, co: Callouts, cx, cy, den):
     cy2 = abs(y2)
     x1_ = max(pm, cy2)
     yy2 = min(e - hk, cy2 + 0.5 * (e - x1_))
-    v.pl("COTTHEP", False, [(-0.06, y2), (-x1_, y2), (-e, -yy2), (-e, -yy2 - hk)])
+    v.pl("COTTHEP", False, [(0.0, y2), (-x1_, y2), (-e, -yy2), (-e, -yy2 - hk)])
     xr = v.x(B + model.ML) + 5.0
     xl = v.x(-B - model.ML) - 5.0
     co([v.P(x1, 0.35 * B)], xr, v.y(0.35 * B), 1, 1, phi(p["RB_BOT_D"], p["RB_BOT_S"]), mode=True)
     co([v.P(0.5 * (x1 + e), y1)], xr, v.y(0.8 * B + 0.05) + 3.0, 1, 1, phi(p["RB_BOT_D"], p["RB_BOT_S"]), mode=True)
     co([v.P(x2, 0.35 * B)], xl, v.y(0.35 * B), -1, 2, phi(p["RB_TOP_D"], p["RB_TOP_S"]), mode=True)
-    xq = -0.5 * (x1_ + 0.06)
+    xq = -0.5 * x1_
     co([v.P(xq, y2)], xl, v.y(y2) + 4.0, -1, 2, phi(p["RB_TOP_D"], p["RB_TOP_S"]), mode=True)
     yb = v.y(-B - model.ML)
     c.txj("CHU", v.x(-0.5 * B), yb - 5.0, 2.5, T_TOP, 1, underline=True)
     c.txj("CHU", v.x(0.5 * B), yb - 5.0, 2.5, T_BOT, 1, underline=True)
     w100 = txtw("100", 2.0)
-    v.dimH((-B, B), (B, B), v.y(B + model.ML) + 4.0)
-    yy = v.y(B + model.ML) + 4.0
+    v.dimH((-B, B), (B, B), v.y(B + model.ML) + 8.0)
+    yy = v.y(B + model.ML) + 8.0
     for s in (-1, 1):
         v.dimH((s * B, B), (s * (B + model.ML), B + model.ML), yy, (v.x(s * (B + model.ML)) + s * (1.0 + w100 / 2), yy + 2.0))
     sc_title(c, cx, yb - 16.0, "THÉP BẢN ĐẾ", den)
@@ -349,8 +354,7 @@ def draw(c: Ctx, g: Geo):
     with c.group("mesh", "Lưới thép đầu trụ"):
         mesh(c, g, co, xm, ym)
     ytb = tables.steel_table(c, g, XT, 280.0, 120.0)
-    yb = tables.summary(c, g, 405.0, ytb - 6.0)
-    note_at(c, XT, yb - 6.0, ["- XEM GHI CHÚ CHUNG TẠI BẢN VẼ SỐ: " + str(g.p.get("CODE", "")),
+    note_at(c, XT, ytb - 10.0, ["- XEM GHI CHÚ CHUNG TẠI BẢN VẼ SỐ: " + str(g.p.get("CODE", "")),
                               "- KÍCH THƯỚC GHI TRÊN BẢN VẼ TÍNH BẰNG mm."])
     yy = ym - hp - 24.0
     x0 = XT - 5.0 - sum(tables.BT_CW)

@@ -1,4 +1,4 @@
-"""Vẽ biểu tượng app: móng trụ rời 3D (4 trụ: lót, bản đế vát, cổ trụ, bu lông), nhìn trục đo."""
+"""Vẽ biểu tượng app: 1 trụ móng 3D (lót, bản đế vát, cổ trụ, bu lông), nhìn trục đo."""
 import math
 import os
 
@@ -53,9 +53,9 @@ PAL = "am"                # phương án D - tông ấm (đã chọn)
 def draw(pal, size=SIZE):
     im = Image.new("RGBA", (W, W), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
-    a, L, hv, hb, pm = 2.3, 1.75, 0.35, 0.95, 0.62     # tim trụ, nửa cạnh bản đế, cao mép / gờ, nửa gờ
-    hc, H = 0.42, 4.1                                   # nửa cạnh cổ, đỉnh cổ
-    for x, y in ((-a, -a), (a, -a), (-a, a), (a, a)):  # vẽ từ xa tới gần
+    L, hv, hb, pm = 2.6, 0.5, 1.4, 0.9                 # nửa cạnh bản đế, cao mép / gờ, nửa gờ
+    hc, H = 0.62, 5.6                                   # nửa cạnh cổ, đỉnh cổ
+    for x, y in ((0.0, 0.0),):                          # 1 trụ móng
         box(d, x - L - 0.18, y - L - 0.18, -0.2, x + L + 0.18, y + L + 0.18, 0.0, pal["lot"])
         box(d, x - L, y - L, 0.0, x + L, y + L, hv, pal["slab"])
         # mặt vát: 2 mặt phía trước (thấy được) + gờ phẳng
@@ -70,7 +70,7 @@ def draw(pal, size=SIZE):
         poly(d, [(x - pm, y - pm, hb), (x + pm, y - pm, hb), (x + pm, y + pm, hb), (x - pm, y + pm, hb)],
              shade(pal["slab"], 1.10))
         box(d, x - hc, y - hc, hb, x + hc, y + hc, H, pal["pier"])
-        for bx, by in ((-0.2, -0.2), (0.2, -0.2), (-0.2, 0.2), (0.2, 0.2)):
+        for bx, by in ((-0.3, -0.3), (0.3, -0.3), (-0.3, 0.3), (0.3, 0.3)):
             cx, cy = x + bx, y + by
             x0, y0 = P(cx, cy, H)
             x1, y1 = P(cx, cy, H + 0.45)

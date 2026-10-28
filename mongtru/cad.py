@@ -372,7 +372,7 @@ class Ctx:
         return self._text(lay, x, y, h, s, a, **kw)
 
     # --- kích thước -------------------------------------------------------
-    def dim(self, lay, rot, p1, p2, pd, tp=None, dimname=None, override=None):
+    def dim(self, lay, rot, p1, p2, pd, tp=None, dimname=None, override=None, text="<>"):
         """Dim: điểm đo p1, p2 cố định theo hình; đường dim và chữ dịch theo item."""
         with self.item("dim", "Kích thước"):
             dxi, dyi = self.off(True)
@@ -400,7 +400,7 @@ class Ctx:
                 self.wp(pd[0] - 1, p1[1])
                 self.wp(pd[0] + 1, p2[1])
             d = self.msp.add_linear_dim(base=base, p1=a, p2=b, angle=rot, location=loc,
-                                        dimstyle=dimname or self.dimname, override=override,
+                                        dimstyle=dimname or self.dimname, override=override, text=text,
                                         dxfattribs={"layer": lay})
             d.render()
         lw = LAYERS.get(lay, (0, 0, 18))[2]

@@ -40,13 +40,12 @@ def prism(pts, z0, z1):
 
 class Scene:
     """Danh sách mặt bê tông và đoạn thép (m, gốc tại tim móng, z = 0 ở đáy bản đế).
-    Cắt 1/4: chỉ giữ 1/4 trụ (+X, +Y), cắt qua tim trụ để thấy thép bên trong."""
+    quarter=True: chỉ hiện 1 trụ (trụ +X, +Y), đủ cả trụ."""
 
     def __init__(self, g, quarter=False):
         self.g = g
-        d = g.bt / 2
         self.quarter = quarter
-        self.lim = (d, d) if quarter else (-1e9, -1e9)
+        self.lim = (-1e9, -1e9)
         self.faces = []      # (layer, color, alpha, [pts])
         self.lines = []      # (layer, color, width_m, p0, p1)
         self.build()
@@ -88,10 +87,6 @@ class Scene:
             [P(0, bh, hb), P(bh, bh, hb), P(bh, bh, H), P(0, bh, H)],
             [P(0, 0, H), P(bh, 0, H), P(bh, bh, H), P(0, bh, H)],
         ]
-        if self.quarter:                  # mặt cắt qua tim trụ
-            sec = [(0, 0), (B, 0), (B, hv), (pm, hb), (bh, hb), (bh, H), (0, H)]
-            fs.append([P(t, 0, z) for t, z in sec])
-            fs.append([P(0, t, z) for t, z in sec])
         return fs
 
     def build(self):
@@ -101,7 +96,7 @@ class Scene:
         d = g.bt / 2
         B, cov, H = g.Bh, g.cov, g.H
         e = B - cov
-        ml, tl = model.ML, model.TL
+        ml = model.ML
         bt, al = COL["bt"], 0.16
         piers = [(sx * d, sy * d) for sx in (-1, 1) for sy in (-1, 1)]
         if self.quarter:
