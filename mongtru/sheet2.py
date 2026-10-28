@@ -6,7 +6,7 @@ from . import model, tables
 from .cad import Ctx, ensure_dimstyle, txtw
 from .geom import ANCHOR, CH_LEG, Geo, ceil_
 from .sheet1 import bolts_aa, pad_aa, pad_plan
-from .view import V, Callouts, cut_line, dai_draw, note_at, ni, phi, tick45, tie, title
+from .view import V, Callouts, cut_line, dai_draw, note_at, ni, phi, sym, tick45, tick_at, tie, title
 
 T_TOP = "LỚP TRÊN"
 T_BOT = "LỚP DƯỚI"
@@ -51,14 +51,15 @@ def pier_section(c: Ctx, g: Geo, co: Callouts, cx, ytop):
     e = B - cov
     # lưới dưới: thanh theo X (ngoài cùng) thấy dài, thanh theo Y là chấm
     zx, zy = g.z_bot()
-    rdb = v.rbar(p["RB_BOT_D"])
+    dot = lambda dmm: max(0.45, v.rbar(dmm))          # chấm thép đủ to để nhìn rõ
+    rdb = dot(p["RB_BOT_D"])
     v.ln("COTTHEP", -e, zx, e, zx)
     xs = g.xs_bot()
     for x in xs:
         v.disc("COTTHEP", x, zy, rdb)
     # lưới trên: thanh theo X ở tim (uốn theo mặt vát, móc chân), thanh theo Y là chấm
     d0, d1 = g.d_top()
-    rdt = v.rbar(p["RB_TOP_D"])
+    rdt = dot(p["RB_TOP_D"])
     hk = g.hook_top()
     zt = lambda x, d: g.ztop(x) - d
     pm = g.pm
@@ -67,11 +68,15 @@ def pier_section(c: Ctx, g: Geo, co: Callouts, cx, ytop):
     xt = g.xs_top()
     for x in xt:
         v.disc("COTTHEP", x, zt(x, d1), rdt)
-    # thanh chống (dãy gần tim): thân đứng, 2 chân ngang
-    chs = sorted({round(x, 6) for x, _ in g.chairs() if abs(x) > g.bb / 2})
+    # thanh chống (dãy gần tim nhất): thân đứng, 2 chân ngang
+    ch = g.chairs()
+    y0r = min(abs(y) for _, y in ch)
+    row = [(x, y) for x, y in ch if abs(abs(y) - y0r) < 0.03 and y > -1e-9]     # cả vị trí đã dời tránh thép chủ
+    chs = sorted(x for x, _ in row)
+    ych = {x: y for x, y in row}
     zc0 = g.covb + g.db
     for x in chs:
-        z1 = zc0 + g.chair_body(x, 0.0)
+        z1 = zc0 + g.chair_body(x, ych[x])
         sg = 1.0 if x < 0 else -1.0
         v.pl("DAI", False, [(x + sg * CH_LEG, zc0), (x, zc0), (x, z1), (x + sg * CH_LEG, z1)])
     # cổ móng: thép chủ neo chân quay ra ngoài, đai, lưới đầu trụ
@@ -83,7 +88,7 @@ def pier_section(c: Ctx, g: Geo, co: Callouts, cx, ytop):
     wh = g.bb / 2 - cov
     for z in g.hoop_zs():
         v.ln("DAI", -wh, z, wh, z)
-    rl = v.rbar(p["RL_D"])
+    rl = dot(p["RL_D"])
     hl = wh - g.g("RT_D") / 1000.0
     nd = ceil_(2 * hl / (p["RL_S"] / 1000.0) - 1e-6)
     for z in g.mesh_zs():
@@ -94,20 +99,27 @@ def pier_section(c: Ctx, g: Geo, co: Callouts, cx, ytop):
     # ---- chú thích
     xr = v.x(B + model.ML) + 4.0
     xl = v.x(-B - model.ML) - 4.0
-    # 1: lưới dưới (chấm + thanh dài)
-    i1 = max(0, len(xs) // 2 + 2)
-    i1 = min(i1, len(xs) - 2)
+    # 1, 2: thép 2 phương giống nhau -> 1 tag chỉ cả chấm tròn và thanh nằm ngang, đặt ở chỗ trống
+    # (giữa đầu neo thép chủ / mép gờ và mép bản đế, tránh thanh chống)
+    us0 = g.pier_us()[-1]
+
+    def free(lst, lo, hi):
+        cand = [i for i in range(len(lst) - 1) if lo < lst[i] and lst[i + 1] < hi]
+        cand = [i for i in cand if all(abs(0.5 * (lst[i] + lst[i + 1]) - x) > 0.06 for x in chs)] or cand
+        if not cand:
+            return max(0, min(len(lst) - 2, len(lst) // 2 + 1))
+        m = 0.5 * (lo + hi)
+        return min(cand, key=lambda i: abs(0.5 * (lst[i] + lst[i + 1]) - m))
+    i1 = free(xs, us0 + ANCHOR + 0.05, e)
     co([v.P(xs[i1], zy), v.P(0.5 * (xs[i1] + xs[i1 + 1]), zx)], xr, v.y(-model.TL) - 11.0, 1, 1,
        phi(p["RB_BOT_D"], p["RB_BOT_S"]), tick=False)
-    # 2: lưới trên
-    j2 = max(0, len(xt) // 2 + 2)
-    j2 = min(j2, len(xt) - 2)
-    xa = xt[j2]
-    co([v.P(xa, zt(xa, d1)), v.P(0.5 * (xt[j2] + xt[j2 + 1]), zt(0.5 * (xt[j2] + xt[j2 + 1]), d0))],
-       xr, v.y(g.hb) + 4.0, 1, 2, phi(p["RB_TOP_D"], p["RB_TOP_S"]), tick=False)
+    j2 = free(xt, pm + 0.1, e - 0.05)
+    xa, xm2 = xt[j2], 0.5 * (xt[j2] + xt[j2 + 1])
+    co([v.P(xa, zt(xa, d1)), v.P(xm2, zt(xm2, d0))], xr, v.y(g.hb) + 4.0, 1, 2,
+       phi(p["RB_TOP_D"], p["RB_TOP_S"]), tick=False)
     # 3: thanh chống (bên trái)
     x3 = chs[0]
-    co([v.P(x3, 0.5 * (zc0 + zc0 + g.chair_body(x3, 0.0)))], xl, v.y(-model.TL) - 11.0, -1, 3, T_CHONG,
+    co([v.P(x3, zc0 + 0.5 * g.chair_body(x3, ych[x3]))], xl, v.y(-model.TL) - 11.0, -1, 3, T_CHONG,
        phi(p["RB_CH_D"], p["RB_CH_S"]))
     # 4: thép chủ (bên phải cổ)
     xp = v.x(g.bb / 2) + 6.0
@@ -121,7 +133,7 @@ def pier_section(c: Ctx, g: Geo, co: Callouts, cx, ytop):
     zi = [z for z in hz if zlo < z < zm - 0.1]
     z5 = zi[0] if zi else 0.5 * (g.hb + zm)
     nums = [5] + [q for q in (6, 7) if q in g.seq]
-    xv = v.x(wh - 0.06)
+    xv = v.x(us[-1]) - 2.5                        # đường đứng lệch vào trong, không trùng nét thép chủ
     with c.item("callout5", f"Chú thích thép {g.sq(5)}"):
         y5 = v.y(z5) - 3.0
         bx = xp
@@ -181,10 +193,10 @@ def slab_plan(c: Ctx, g: Geo, co: Callouts, cx, cy, den):
     B, cov = g.Bh, g.cov
     e = B - cov
     v.ln("TRUC", -B - 0.25, 0.0, B + 0.25, 0.0)
-    v.ln("TRUC", 0.0, -B - 0.25, 0.0, B + 0.25)
-    # nét ngắt ở tim (chia 2 nửa)
-    from .view import brk
-    brk(c, v.x(0.0), v.y(B + 0.18), v.x(0.0), v.y(-B - 0.18), 1.2)
+    # trục đứng chia 2 nửa (lớp trên / lớp dưới) + ký hiệu đối xứng
+    ys0 = v.y(-B - model.ML) - 6.0                 # giữa 2 chữ LỚP TRÊN / LỚP DƯỚI
+    c.ln("TRUC", v.x(0.0), v.y(B + 0.25), v.x(0.0), ys0 - 2.5)
+    sym(c, v.x(0.0), ys0)
 
     def pick(lst, lo, hi, tgt):
         c_ = [x for x in lst if lo < x < hi]
@@ -196,19 +208,25 @@ def slab_plan(c: Ctx, g: Geo, co: Callouts, cx, cy, den):
     v.ln("COTTHEP", x1, -e, x1, e)
     y1 = pick(xb, g.pm, e, 0.8 * B)
     v.ln("COTTHEP", 0.06, y1, e, y1)
-    # lớp trên (trái)
-    x2 = pick([-x for x in xt], -e, -g.pm, -0.62 * B)
-    v.ln("COTTHEP", x2, -e, x2, e)
-    y2 = pick([-x for x in xt], -e, -g.pm, -0.8 * B)
-    v.ln("COTTHEP", -e, y2, -0.06, y2)
-    for x, y in ((x2, -e), (x2, e), (-e, y2)):
-        v.disc("COTTHEP", x, y, v.rbar(p["RB_TOP_D"]) + 0.15)
+    # lớp trên (trái): như app móng bản không dầm - đoạn xiên theo mặt vát vẽ lệch về góc, móc 100 ở đầu
+    hk, pm = 0.1, g.pm
+    x2 = pick([-x for x in xt], -e, -pm, -0.62 * B)
+    ca = abs(x2)
+    ya = max(pm, ca)
+    sh = max(0.0, min(0.5 * (e - ya), e - ca - hk))
+    v.pl("COTTHEP", False, [(x2 - sh - hk, -e), (x2 - sh, -e), (x2, -ya), (x2, ya), (x2 - sh, e), (x2 - sh - hk, e)])
+    y2 = pick([-x for x in xt], -e, -pm, -0.8 * B)
+    cy2 = abs(y2)
+    x1_ = max(pm, cy2)
+    yy2 = min(e - hk, cy2 + 0.5 * (e - x1_))
+    v.pl("COTTHEP", False, [(-0.06, y2), (-x1_, y2), (-e, -yy2), (-e, -yy2 - hk)])
     xr = v.x(B + model.ML) + 5.0
     xl = v.x(-B - model.ML) - 5.0
     co([v.P(x1, 0.35 * B)], xr, v.y(0.35 * B), 1, 1, phi(p["RB_BOT_D"], p["RB_BOT_S"]), mode=True)
     co([v.P(0.5 * (x1 + e), y1)], xr, v.y(0.8 * B + 0.05) + 3.0, 1, 1, phi(p["RB_BOT_D"], p["RB_BOT_S"]), mode=True)
     co([v.P(x2, 0.35 * B)], xl, v.y(0.35 * B), -1, 2, phi(p["RB_TOP_D"], p["RB_TOP_S"]), mode=True)
-    co([v.P(0.5 * (x2 - e), y2)], xl, v.y(y2) - 4.0, -1, 2, phi(p["RB_TOP_D"], p["RB_TOP_S"]), mode=True)
+    xq = -0.5 * (x1_ + 0.06)
+    co([v.P(xq, y2)], xl, v.y(y2) + 4.0, -1, 2, phi(p["RB_TOP_D"], p["RB_TOP_S"]), mode=True)
     yb = v.y(-B - model.ML)
     c.txj("CHU", v.x(-0.5 * B), yb - 5.0, 2.5, T_TOP, 1, underline=True)
     c.txj("CHU", v.x(0.5 * B), yb - 5.0, 2.5, T_BOT, 1, underline=True)
@@ -217,7 +235,7 @@ def slab_plan(c: Ctx, g: Geo, co: Callouts, cx, cy, den):
     yy = v.y(B + model.ML) + 4.0
     for s in (-1, 1):
         v.dimH((s * B, B), (s * (B + model.ML), B + model.ML), yy, (v.x(s * (B + model.ML)) + s * (1.0 + w100 / 2), yy + 2.0))
-    sc_title(c, cx, yb - 13.0, "THÉP BẢN ĐẾ", den)
+    sc_title(c, cx, yb - 16.0, "THÉP BẢN ĐẾ", den)
 
 
 # ---------------------------------------------------------------------------
@@ -272,8 +290,10 @@ def col_section(c: Ctx, g: Geo, co: Callouts, cx, cy):
        f"{n}%%C{ni(dia)}", tick=False, mode=True)
     co([(cx + hb0, cy + 0.55 * hh)], bx, cy + 0.55 * hh, 1, 5, phi(p["RT_D"], p["RT_S"]), mode=True)
     if grp:
-        co([(cx + 0.5 * (xo + yo), cy - 0.5 * (xo + yo))], bx, cy - 0.15 * hh, 1, 6,
-           phi(p["RP_D"], p["RP_S"]), mode=True)
+        # nét xẹt 45° trùng thanh xiên của đai bát giác -> xoay vuông góc thanh (quy tắc app cũ)
+        tx6, ty6 = cx + 0.5 * (xo + yo), cy - 0.5 * (xo + yo)
+        co([(tx6, ty6)], bx, cy - 0.15 * hh, 1, 6, phi(p["RP_D"], p["RP_S"]), mode=True, tick=False)
+        tick_at(c, tx6, ty6, -45.0)
     if st:
         xi = -hb + max(st) * sp
         sole = sorted(st) != sorted(m - 1 - j for j in st)

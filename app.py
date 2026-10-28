@@ -263,6 +263,11 @@ class App(tk.Tk):
         self.l_xls.pack(side="left")
         self.l_frame = ttk.Label(info, text="", style="Info.TLabel")
         self.l_frame.pack(side="right")
+        # lỗi / cảnh báo số liệu: dải đỏ ngay dưới thanh thông tin, chỉ hiện khi có nội dung
+        self._info_bar = info
+        f = self._f
+        self.l_err = tk.Label(self, text="", background="#FDECEA", foreground=C["red"], anchor="w",
+                              justify="left", padx=12, pady=3, font=(f[0], f[1], "bold"))
 
         pw = ttk.PanedWindow(self, orient="horizontal")
         pw.pack(fill="both", expand=True, padx=8, pady=(0, 6))
@@ -405,6 +410,10 @@ class App(tk.Tk):
         head("2. Kích thước")
         for k, lbl in DIM_FIELDS:
             row(lbl, k, 8)
+            if k == "MPIT":              # cách đào hố ngay dưới dòng mở rộng đáy hố đào
+                self.l_pit = ttk.Label(body, text="", style="Sub.TLabel")
+                self.l_pit.grid(row=r, column=1, columnspan=3, sticky="w")
+                r += 1
         head("3. Cốt thép (mm)")
         ttk.Label(body, text="Ø").grid(row=r, column=1, sticky="w")
         ttk.Label(body, text="@ / số thanh").grid(row=r, column=2, sticky="w")
@@ -429,11 +438,6 @@ class App(tk.Tk):
                      state="readonly").grid(row=r, column=1, sticky="w")
         ttk.Button(body, text="Tự chọn", command=self.auto_scale, style="Small.TButton").grid(row=r, column=2, sticky="w")
         r += 1
-        self.l_info = ttk.Label(body, text="", style="Info2.TLabel", wraplength=520, justify="left")
-        self.l_info.grid(row=r, column=0, columnspan=4, sticky="w", padx=6, pady=(10, 2))
-        r += 1
-        self.l_err = ttk.Label(body, text="", style="Err.TLabel", wraplength=520, justify="left")
-        self.l_err.grid(row=r, column=0, columnspan=4, sticky="w", padx=6)
 
     # ------------------------------------------------------------ dữ liệu
     def _fill(self):
@@ -481,19 +485,24 @@ class App(tk.Tk):
                 self.after_cancel(self._job)
             self._job = self.after(1200, self.preview)
 
+    def _set_err(self, text):
+        self.l_err.config(text=text)
+        if text:
+            self.l_err.pack(side="top", fill="x", after=self._info_bar)
+        else:
+            self.l_err.pack_forget()
+
     def _update_info(self):
         try:
             p = self._collect()
         except ValueError:
-            self.l_err.config(text="[!] Có ô nhập không phải số.")
+            self._set_err("[!] Có ô nhập không phải số.")
             return None
         err = model.validate(p)
         warn = [] if err else model.warnings(p)
-        self.l_err.config(text=f"[!] {err}" if err else ("".join(f"[Cảnh báo] {w}\n" for w in warn).strip()))
-        if not err:
-            info = f"Loại móng: {model.type_name(p)}"
-            info += "\nHố đào: " + ("đào chung 1 hố cho 4 trụ" if model.pit_joint(p) else "đào riêng từng trụ")
-            self.l_info.config(text=info)
+        self._set_err(f"[!] {err}" if err else "   ".join(f"[Cảnh báo] {w}" for w in warn))
+        self.l_pit.config(text="" if err else
+                          "Hố đào: " + ("đào chung 1 hố cho 4 trụ" if model.pit_joint(p) else "đào riêng từng trụ"))
         return None if err else p
 
     def auto_scale(self):

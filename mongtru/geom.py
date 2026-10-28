@@ -167,12 +167,19 @@ class Geo:
         return b, d
 
     def chairs(self):
-        """Vị trí thanh chống (x, y) trên 1 trụ: lưới @ trong phạm vi bản đế trừ 1 bước mỗi bên,
-        bỏ các vị trí nằm trong cổ móng (vướng thép chủ cổ móng)."""
+        """Vị trí thanh chống (x, y) trên 1 trụ: lưới @ trong phạm vi bản đế trừ 1 bước mỗi bên."""
         s = self.g("RB_CH_S") / 1000.0
         xs = offs(max(s, self.span() - 2 * s), s)
-        w = self.bb / 2
-        return [(x, y) for x in xs for y in xs if max(abs(x), abs(y)) > w + 1e-6]
+        # tránh thép chủ cổ móng: thanh chống gần hàng thép chủ thì dời vào trong / ra ngoài hàng thép
+        w = self.pier_us()[-1]
+        cl = self.dc / 2 + self.g("RB_CH_D") / 2000.0 + 0.04
+        out = []
+        for x in xs:
+            for y in xs:
+                r = max(abs(x), abs(y))
+                f = (w - cl if r < w else w + cl) / r if r > 1e-9 and abs(r - w) < cl else 1.0
+                out.append((x * f, y * f))
+        return out
 
     def chair_body(self, x, y):
         """Chiều cao thân thanh chống: h - 2 lớp bảo vệ - 2Ø (đỡ thanh ngoài cùng lớp dưới và lớp trên)."""

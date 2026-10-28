@@ -140,7 +140,7 @@ def dim_section(c: Ctx, g: Geo):
         tp = (g.dimX2 - 2.0, g.ybase + k * (g.hv + g.hb) / 2 + 0.6) if i == 1 and k * (g.hb - g.hv) < w100 + 1 else None
         c.dimV("DIM", (xs[i], ys[i]), (xs[i + 1], ys[i + 1]), g.dimX2, tp)
     # dày lót
-    xd = xl - k * model.ML - 4.0
+    xd = cx - k * (g.pitX + g.pitB) - 4.0              # bên trái mép đáy hố, không đè nét mái hố
     c.dimV("DIM", (xl - k * model.ML, g.ybase), (xl - k * model.ML, g.ylt), xd,
            (xd - 2.0, g.ylt - 1.0 - w100 / 2))
     # dưới mặt cắt: lót, B, lót cho từng trụ; mép hố
@@ -150,8 +150,9 @@ def dim_section(c: Ctx, g: Geo):
         hl, hb_ = k * (g.Bh + model.ML), k * g.Bh
         c.dimH("DIM", (x0 - hb_, yb), (x0 + hb_, yb), g.yd)
         # chữ lót phía trong (giữa 2 trụ) đặt vào trong bản đế để không chồng chữ của trụ bên cạnh
-        tl_ = x0 - hb_ + 1.0 + w100 / 2 if s > 0 else x0 - hl - 1.0 - w100 / 2
-        tr_ = x0 + hb_ - 1.0 - w100 / 2 if s < 0 else x0 + hl + 1.0 + w100 / 2
+        # chữ dày lót đặt vào trong bản đế: phía ngoài để chỗ cho kích thước mép hố cùng hàng
+        tl_ = x0 - hb_ + 1.0 + w100 / 2
+        tr_ = x0 + hb_ - 1.0 - w100 / 2
         c.dimH("DIM", (x0 - hl, yb), (x0 - hb_, yb), g.yd, (tl_, g.yd + 2.0))
         c.dimH("DIM", (x0 + hb_, yb), (x0 + hl, yb), g.yd, (tr_, g.yd + 2.0))
     # mép hố ngoài cùng
@@ -160,8 +161,8 @@ def dim_section(c: Ctx, g: Geo):
     if xp - hl > 0.5:
         w = txtw(f"{1000 * (g.pitX + g.pitB - g.bt / 2 - g.Bh - model.ML):.0f}", 2.0)
         for s in (-1, 1):
-            c.dimH("DIM", (cx + s * hl, yb), (cx + s * xp, yb), g.yd - 6.0,
-                   (cx + s * (xp + 1.0 + w / 2), g.yd - 6.0 + 2.0) if xp - hl < w + 1.0 else None)
+            c.dimH("DIM", (cx + s * hl, yb), (cx + s * xp, yb), g.yd,
+                   (cx + s * (xp + 1.0 + w / 2), g.yd + 2.0) if xp - hl < w + 1.0 else None)
     # trên: cổ móng, tim trụ
     y1, y2 = g.ytop + 6.0, g.ytop + 12.9
     for s in (-1, 1):

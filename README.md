@@ -34,12 +34,12 @@ App Windows chạy offline, vẽ nhanh bản vẽ **móng trụ rời 4 trụ** 
   - Hố đào: nếu miệng các hố riêng chạm nhau thì đào chung 1 hố cho 4 trụ, ngược lại đào riêng từng trụ. Mái hố vẽ 1:0,5; hệ số mái trong Excel chỉ dùng tính khối lượng.
   - Đền bù: cạnh Bt + Bm + 1.
 - **Thép:** tính và trình bày như app móng bản không dầm: khối lượng tính từ đúng các thanh vẽ ra.
-  - Thép bản đế 2 lớp, rải riêng vùng gờ cổ móng và vùng vát. Lớp trên uốn theo mặt vát, 2 đầu móc xuống (làm tròn lên 100). Bảng thống kê ghi chiều dài trung bình, kèm bảng kích thước từng thanh.
-  - Thanh chống: lưới theo bước, chân 100, thân cao theo mặt vát; bỏ vị trí nằm trong cổ móng.
+  - Thép bản đế 2 lớp, rải riêng vùng gờ cổ móng và vùng vát. Lớp trên uốn theo mặt vát, 2 đầu móc xuống (làm tròn lên 100). Bảng thống kê ghi chiều dài trung bình (không ghi chữ Ltb), kèm bảng kích thước từng thanh.
+  - Thanh chống: lưới theo bước (cả phần dưới cổ móng), chân 100, thân cao theo mặt vát; vị trí sát hàng thép chủ cổ móng được dời vào trong / ra ngoài để tránh thép chủ.
   - Thép chủ cổ móng: neo chân 500 (như app móng bản có dầm).
   - Đai cổ móng: 2 đai (bằng số lớp lưới) đỡ các lớp lưới thép đầu trụ, còn lại theo bước đai.
   - Đai phụ, đai bát giác: theo quy tắc app cũ (giữ các thanh cách nhau ≤ 400).
-  - Bảng tổng kê và Excel khối lượng cộng thêm dự phòng thép (ô H29). Bảng thống kê cốt thép không cộng dự phòng.
+  - Bảng tổng kê và Excel khối lượng cộng thêm dự phòng thép (ô H29), không ghi chú trên bản vẽ. Bảng thống kê cốt thép không cộng dự phòng.
 
 ## Tải file .exe
 Vào tab **Actions** của repo, mở lần build mới nhất và tải mục **VE_MONGTRU-exe** ở phần *Artifacts*.

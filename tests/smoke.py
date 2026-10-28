@@ -24,9 +24,9 @@ g = res.geo
 # thép tính theo bố trí trên bản vẽ (quy tắc app móng bản không dầm), khác sheet "KL" của Excel mẫu:
 # - thép bản đế rải theo vùng gờ cổ móng / phần vát: 15 thanh mỗi phương (Excel 14)
 # - đai cổ móng: 2 đai dưới 2 lớp lưới đầu trụ, còn lại @200 (Excel: @100 trên 1950 mm + @200)
-# - thanh chống: bỏ vị trí nằm trong cổ móng; neo chân thép chủ 500 (Excel 400)
+# - thanh chống đủ lưới (16), vị trí gần thép chủ cổ móng dời tránh; neo chân thép chủ 500 (Excel 400)
 kl = {r["pos"]: r for r in g.kl}
-assert kl[1]["qty"] == "30x4" and kl[2]["qty"] == "30x4" and kl[3]["qty"] == "12x4", kl
+assert kl[1]["qty"] == "30x4" and kl[2]["qty"] == "30x4" and kl[3]["qty"] == "16x4", kl
 assert kl[4]["qty"] == "20x4" and kl[5]["qty"] == "13x4" and kl[8]["qty"] == "28x4", kl
 d = tempfile.mkdtemp()
 export.save_dxf(res, os.path.join(d, "t.dxf"))

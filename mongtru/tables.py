@@ -43,7 +43,7 @@ def shape(c: Ctx, r, x, y, w, h):
         yb = yt - 2.6
         sl, x0, x1 = 6.0, x + 8.0, x + w - 8.0
         rpl(c, lay, [(x0, yb - 2.2), (x0, yb), (x0 + sl, yt), (x1 - sl, yt), (x1, yb), (x1, yb - 2.2)], False, 0.3)
-        lbl(c, xm, yt + 1.2, "Ltb=" + ni(d[1]))
+        lbl(c, xm, yt + 1.2, ni(d[1]))
         lbl(c, x0 - 0.5, yt + 1.2, ni(d[0]))
         lbl(c, x0 - 2.6, yb - 1.4, ni(d[2]))
         lbl(c, x1 + 2.6, yb - 1.4, ni(d[3]))
@@ -53,7 +53,7 @@ def shape(c: Ctx, r, x, y, w, h):
         x0, x1 = xm - 8.0, xm + 8.0
         y0 = yc - hu / 2 - 0.6
         rpl(c, lay, [(x0, y0 + hu), (x0, y0), (x1, y0), (x1, y0 + hu)], False, 0.4)
-        lbl(c, xm, y0 + 1.3, "Ltb=" + ni(d[2]))
+        lbl(c, xm, y0 + 1.3, ni(d[2]))
         lbl(c, x0 - 3.0, y0 + hu / 2, ni(d[0]))
         lbl(c, x1 + 3.0, y0 + hu / 2, ni(d[1]))
     elif pos == 4:
@@ -145,8 +145,7 @@ def steel_table(c: Ctx, g, tx, ty, ybot):
         c.ln("BANG", tx, yend - 6.0, tx + wcol, yend - 6.0)
         c.txj("BANG", tx + 3.0, yend - 4.2, TH, "CỘNG", 0)
         c.txc("BANG", tx + wcol - CW[-1] / 2, yend - 3.0, TH, f"{ssum:.2f}")
-        c.txj("BANG", tx + wcol, yend - 9.5, TH, "(Ltb: CHIỀU DÀI TRUNG BÌNH)", 2)
-    return yend - 11.0
+    return yend - 6.0
 
 
 # ---------------------------------------------------------------------------
@@ -247,7 +246,4 @@ def summary(c: Ctx, g, xr, y0):
             c.txc("BANG", xm, y0 - 8.4, TH, col[1])
             c.txc("BANG", xm, y0 - hh - 4.0, TH, col[3])
             xs += col[2]
-        dp = g.g("DP")
-        if dp > 1e-6:
-            c.txj("BANG", xr, y0 - hh - rh - 3.5, TH, f"(Khối lượng thép đã gồm {dp:g}% dự phòng)", 2)
     return y0 - hh - rh - 5.0
