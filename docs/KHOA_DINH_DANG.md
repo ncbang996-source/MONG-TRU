@@ -1,7 +1,7 @@
 # Khóa định dạng bản 1.0.0 (4 trụ giống nhau)
 
-Bản móng trụ 4 trụ giống nhau đã ổn định và được lưu ở tag git `v1.0.0` (lấy lại đúng mã nguồn lúc đó:
-`git checkout v1.0.0`).
+Bản móng trụ 4 trụ giống nhau đã ổn định và được lưu ở nhánh git `ban-on-dinh-1.0.0` (không commit thêm vào
+nhánh này; lấy lại đúng mã nguồn lúc đó: `git checkout ban-on-dinh-1.0.0`).
 
 ## Quy tắc khi phát triển phần mới
 - Phần mới (vd móng 4 trụ có 2 loại kích thước) viết ở package / thư mục riêng, **không sửa** các file của bản
