@@ -90,6 +90,7 @@ def pier_section(c: Ctx, g: Geo, co: Callouts, cx, ytop):
     # cổ móng: thép chủ (thanh mặt vát nghiêng theo mặt vát) neo chân quay ra ngoài, đai, lưới đầu trụ
     m = g.m_bars()
     z0, z1 = g.pier_z0(), g.z_col_top()
+    z0 = max(z0, zy + (rdb + 0.35) / v.k)             # đoạn neo vẽ nằm trên chấm thép lớp dưới (không trùng nét)
     for i, sg in ((0, 1.0), (m - 1, -1.0)):
         v.pl("COTTHEP", False, [(U(i, z1), z1), (U(i, z0), z0), (U(i, z0) + sg * ANCHOR, z0)])
     wh = g.bb / 2 - cov
@@ -150,7 +151,7 @@ def pier_section(c: Ctx, g: Geo, co: Callouts, cx, ytop):
     zlo = g.hb + 12.0 / v.k                       # trên kích thước gờ cổ móng
     zi = [z for z in hz if zlo < z < zm - 0.1]
     z5 = zi[0] if zi else 0.5 * (g.hb + zm)
-    nums = [5] + [q for q in (6, 7) if q in g.seq]
+    nums = [5] + [q for q in (6, 7, 9) if q in g.seq]
     xv = v.x(U(0, z1)) - 2.5                      # đường đứng lệch vào trong, không trùng nét thép chủ (mặt đứng)
     with c.item("callout5", f"Chú thích thép {g.sq(5)}"):
         y5 = v.y(z5) - 3.0
@@ -309,7 +310,7 @@ def col_section(c: Ctx, g: Geo, co: Callouts, cx, cy):
         ux, uy = (xb_ - xa_) / ln_, 2 * hb / ln_
         tie(c, "DAI", cx + xa_ + rt * uy, cy - hb - rt * ux, ux, uy, ln_, rt, 2.2)
         tie(c, "DAI", cx - hb - rt * ux, cy + xb_ - rt * uy, uy, -ux, ln_, rt, 2.2)
-        dg = (cx + 0.5 * (xa_ + xb_) + 0.3 * hb * ux / uy + rt * uy, cy + 0.3 * hb)
+        dg = (xa_, xb_, ux, uy)
     xo = yo = None
     if grp:
         i = max(grp)
@@ -337,12 +338,25 @@ def col_section(c: Ctx, g: Geo, co: Callouts, cx, cy):
         tx6, ty6 = cx + 0.5 * (xo + yo), cy - 0.5 * (xo + yo)
         co([(tx6, ty6)], bx, cy - 0.15 * hh, 1, 6, phi(p["RP_D"], p["RP_S"]), mode=True, tick=False)
         tick_at(c, tx6, ty6, -45.0)
-    if st or dg:
-        xi = -hb + max(st) * sp if st else 0.0
+    if st:
+        xi = -hb + max(st) * sp
         sole = sorted(st) != sorted(m - 1 - j for j in st)
         yv = cy - 0.8 * hh
-        pts = [(cx + xi + rt, yv), (cx + 0.55 * hb, cy + xi - rt)] if st else [dg]
-        co(pts, bx, yv, 1, 7, phi(p["RP_D"], p["RP_S"]), "SO LE" if sole else None, mode=True)
+        # nhánh lên đai ngang: đoạn đứng đặt giữa 2 thanh chủ, không trùng đai phụ đứng / bu lông
+        vx = [-hb + j * sp + rt for j in st]
+        cand = [-hb + (i + 0.5) * sp for i in range(m - 1)]
+        cand = [x for x in cand if x > 0.1 * hb and all(abs(x - t) > 0.3 * sp for t in vx)
+                and all(abs(cx + x - (cx + bc + q * o)) > 2.0 * rb for q in (-1, 1))] or cand
+        xh = min(cand, key=lambda x: abs(x - 0.55 * hb))
+        co([(cx + xi + rt, yv), (cx + xh, cy + xi - rt)], bx, yv, 1, 7, phi(p["RP_D"], p["RP_S"]),
+           "SO LE" if sole else None, mode=True)
+    if dg:
+        # đai xiên (số hiệu riêng): chỉ vào đai xiên gần ngang, phía phải
+        xa_, xb_, ux, uy = dg
+        x9 = 0.62 * hb
+        t9 = (x9 + hb + rt * ux) / uy
+        y9 = xb_ - rt * uy - ux * t9
+        co([(cx + x9, cy + y9)], bx, cy + y9, 1, 9, phi(p["RP_D"], p["RP_S"]), mode=True)
     nm = ensure_dimstyle(c.doc, den)
     if g.tp > 1e-6:
         b2 = kk * g.b2
@@ -402,24 +416,24 @@ def draw(c: Ctx, g: Geo):
     if tkkt:
         note_at(c, 268.0, 90.0, note)
         return
-    s3 = need_sheet3(g)
-    if s3:
+    mode, place, rh = table_plan(g)
+    if mode == "s3":
         note.append("- BẢNG KÍCH THƯỚC TỪNG THANH XEM TỜ 3/3.")
-    ytb = tables.steel_table(c, g, XT, 280.0, 120.0)
-    note_at(c, XT, ytb - 10.0, note)
-    if not s3:
-        top, bot = mid_box(g)
-        rh = mid_rh(g)
-        yy = top
-        for pos in bar_list(g):
-            yy = tables.bar_table(c, g, MX0, yy, pos, rh=rh) - tables.BT_GAP
+    if mode == "s1":
+        note.append("- BẢNG THỐNG KÊ CỐT THÉP XEM TỜ 1/2.")
+        note_at(c, XT, 280.0, note)
+    else:
+        ytb = tables.steel_table(c, g, XT, 280.0, 120.0)
+        note_at(c, XT, ytb - 10.0, note)
+    for pos, x, y in place or []:
+        tables.bar_table(c, g, x, y, pos, rh=rh)
 
 
 # ---------------------------------------------------------------------------
 # bảng kích thước từng thanh: đặt ở khoảng trống giữa tờ 2, không đủ chỗ thì chuyển hết sang tờ 3
-BAR_POS = (2, 3, 4, 5, 6, 7)
+BAR_POS = (2, 3, 4, 5, 6, 7, 9)
 MX0 = XT - 5.0 - sum(tables.BT_CW)                  # mép trái cột bảng giữa tờ 2
-MID_BOT = 12.0
+MID_BOT = 15.0
 COLS3 = (25.0, 121.0, 217.0, 313.0)                  # tờ 3: 4 cột bảng, cách khung (x 20..410) 5 mm
 TOP3, BOT3, BOT3_KT = 276.0, 16.0, 70.0             # cột chạm khung tên (x > 262, cao tới y 65) dừng ở 70
 
@@ -445,22 +459,81 @@ def mid_box(g: Geo):
     return ym - hp - 24.0, MID_BOT
 
 
-def mid_rh(g: Geo):
-    """Chiều cao dòng để các bảng vừa khoảng giữa tờ 2 (None nếu không vừa với dòng 4 mm)."""
+# bảng thống kê cốt thép đưa sang tờ 1 (dưới bảng tổng kê) khi tờ 2 không đủ chỗ cho bảng kích thước từng thanh
+S1_X, S1_TOP, S1_BOT = 268.0, 234.0, 100.0
+RIGHT_TOP, RIGHT_BOT = 256.0, 72.0                 # cột phải tờ 2 (dưới ghi chú, trên khung tên)
+
+
+def steel_fits_s1(g: Geo):
+    h = 13.0 + 6.0 + sum(tables.row_h(r["pos"], 4.6) for r in g.kl)
+    return h <= S1_TOP - S1_BOT
+
+
+def _pack(g: Geo, cols, rh):
+    """Xếp các bảng kích thước từng thanh vào các cột [(x, đỉnh, đáy)] -> [(pos, x, y)] hoặc None.
+    Thử xếp lần lượt theo số hiệu (cột giữa trước, rồi cột phải trước); không vừa thì xếp bảng cao trước vào cột
+    đầu tiên còn đủ chỗ
+    (trong mỗi cột các bảng vẫn theo thứ tự số hiệu)."""
     lst = bar_list(g)
-    if not lst:
-        return tables.BT_RH
+    hs = {pos: tables.BT_HH + len(g.klb[pos]) * rh for pos in lst}
+    for cs in (cols, cols[::-1]):                   # giữ thứ tự số hiệu: cột giữa trước, rồi thử cột phải trước
+        out, ci, y = [], 0, cs[0][1]
+        for pos in lst:
+            while ci < len(cs) and y - hs[pos] < cs[ci][2]:
+                ci += 1
+                y = cs[ci][1] if ci < len(cs) else 0.0
+            if ci >= len(cs):
+                break
+            out.append((pos, cs[ci][0], y))
+            y -= hs[pos] + tables.BT_GAP
+        else:
+            return out
+    used = [0.0] * len(cols)
+    where = {i: [] for i in range(len(cols))}
+    for pos in sorted(lst, key=lambda q: -hs[q]):
+        for i, (_, top, bot) in enumerate(cols):
+            need = hs[pos] + (tables.BT_GAP if where[i] else 0.0)
+            if used[i] + need <= top - bot:
+                used[i] += need
+                where[i].append(pos)
+                break
+        else:
+            return None
+    out = []
+    for i, (x, top, _) in enumerate(cols):
+        y = top
+        for pos in sorted(where[i], key=lambda q: lst.index(q)):
+            out.append((pos, x, y))
+            y -= hs[pos] + tables.BT_GAP
+    return out
+
+
+def table_plan(g: Geo):
+    """Cách bố trí bảng: ("s2" | "s1" | "s3", vị trí các bảng kích thước từng thanh trên tờ 2, chiều cao dòng).
+    s2: bảng kích thước ở khoảng giữa tờ 2; s1: bảng thống kê sang tờ 1, bảng kích thước ở giữa + cột phải tờ 2;
+    s3: bảng kích thước sang tờ 3."""
+    if not getattr(g, "kl", None):
+        g.calc_kl()
+    if model.is_tkkt(g.p) or not model.is_detail(g.p):
+        return "s2", [], tables.BT_RH
     top, bot = mid_box(g)
-    n = sum(len(g.klb[p]) for p in lst)
-    fixed = len(lst) * (tables.BT_HH + tables.BT_GAP) - tables.BT_GAP
-    rh = min(tables.BT_RH, (top - bot - fixed) / n)
-    return rh if rh >= 4.0 else None
+    opts = [("s2", [(MX0, top, bot)])]
+    if steel_fits_s1(g):
+        opts.append(("s1", [(MX0, top, bot), (XT, RIGHT_TOP, RIGHT_BOT)]))
+    for mode, cols in opts:
+        for rh in (tables.BT_RH, 4.5, 4.0):
+            r = _pack(g, cols, rh)
+            if r is not None:
+                return mode, r, rh
+    return "s3", None, None
 
 
 def need_sheet3(g: Geo):
-    if not getattr(g, "kl", None):
-        g.calc_kl()
-    return not model.is_tkkt(g.p) and model.is_detail(g.p) and mid_rh(g) is None
+    return table_plan(g)[0] == "s3"
+
+
+def steel_on_s1(g: Geo):
+    return table_plan(g)[0] == "s1"
 
 
 def draw3(c: Ctx, g: Geo):

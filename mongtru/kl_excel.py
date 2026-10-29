@@ -258,8 +258,9 @@ def export(p: dict, g: Geo, path: str):
     bt7 = line("", "Cạnh cổ móng trung bình tại các mức đai phụ", "b7",
                f"=TS_b2-{kz}*(({hh_}-TS_cv-2*TS_dl/1000+TS_hb)/2-TS_hb)",
                "Mức đai phụ rải đều từ H − cv − 2Ø lưới xuống hb: cao độ TB = (đỉnh + hb)/2", "m")
-    vc = line("", "Chiều cao đoạn thẳng đứng thép chủ cổ móng", "Vc", f"={hh_}-TS_cv-TS_cvb-2*TS_db/1000",
-              "H − cv − cvb − 2Ø lớp dưới", "m")
+    vc = line("", "Chiều cao đoạn thẳng đứng thép chủ cổ móng", "Vc",
+              f"={hh_}-TS_cv-TS_cvb-2*TS_db/1000-TS_dcm/2000",
+              "H − cv − cvb − 2Ø lớp dưới − Ø chủ/2 (đoạn neo tựa trên 2 phương thép lớp dưới)", "m")
     mcm = line("", "Số thanh thép chủ cổ móng 1 cạnh", "mcm", "=1+INT(TS_ncm/4)", "1 + n/4", "thanh")
     scm = line("", "Khoảng cách thanh chủ cổ móng", "scm", f"=1000*(TS_b1-2*TS_cv)/MAX(1,{mcm}-1)",
                "(b − 2cv)/(m − 1)", "mm")
@@ -309,23 +310,24 @@ def export(p: dict, g: Geo, path: str):
         3: ("TS_dch", f"{sch}/{nch}^2+2*TS_lch", f"{nch}^2*TS_n", "Trung bình: Sch/nch² + 2 chân 100",
             "nch² × số trụ"),
         4: ("TS_dcm", f"{s4}/(4*({mcm}-1))+TS_lneo", "TS_ncm*TS_n",
-            "Trung bình: S4/số thanh + neo 500 (cổ thẳng: H − cv − cvb − 2Ø lớp dưới + 500)", "số thanh × số trụ"),
+            "Trung bình: S4/số thanh + neo 500 (cổ thẳng: Vc + 500)", "số thanh × số trụ"),
         5: ("TS_dh", f"4*({b5}-2*TS_cv)+2*TS_hk", f"{n5}*TS_n", "Trung bình: 4(b5 − 2cv) + 2 móc", "n5 × số trụ"),
         6: ("TS_dph", f"IF({gmax}<0,0,8*{oa}+4*SQRT(2)*({of}-{oa})+2*TS_hk)", f"IF({gmax}<0,0,{nt}*TS_n)",
             "8·ao + 4√2(fo − ao) + 2 móc", "nt × số trụ"),
-        7: ("TS_dph", f"IF({nst}+{ndg}=0,0,({nst}*{nt}*({bt7}-2*TS_cv)+{ndg}*{sdg})/({nt}*({nst}+{ndg}))+2*TS_hk)",
-            f"{nt}*2*({nst}+{ndg})*TS_n", "Trung bình: (nst·nt·(b7 − 2cv) + ndg·Sdg)/(nt·(nst + ndg)) + 2 móc",
-            "nt × 2 phương × (nst + ndg) × số trụ"),
+        7: ("TS_dph", f"{bt7}-2*TS_cv+2*TS_hk", f"{nt}*2*{nst}*TS_n", "Trung bình: b7 − 2cv + 2 móc",
+            "nt × 2 phương × nst × số trụ"),
+        9: ("TS_dph", f"{sdg}/{nt}+2*TS_hk", f"{nt}*2*{ndg}*TS_n", "Trung bình: Sdg/nt + 2 móc",
+            "nt × 2 phương × ndg × số trụ"),
         8: ("TS_dl", "TS_b1-2*TS_cv", f"TS_nl*2*{nn8}*TS_n", "b − 2cv", "số lớp × 2 phương × n8 × số trụ"),
     }
-    from .geom import NAMES
+    from .geom import NAMES, POS_ORDER
     sec("E. CỐT THÉP (chiều dài, số lượng tính bằng công thức - xem cột I, J)")
     r += 1
     for i, h in enumerate(["Số hiệu", "Hình dạng / ghi chú", "Ø (mm)", "Chiều dài 1 thanh (mm)", "Số lượng",
                            "kg/m", "Tổng dài (m)", "KL (kg)", "Cách tính chiều dài", "Cách tính số lượng"], 1):
         _cell(wk, r, i, h, bold=True, fill=HEAD, align=Alignment(horizontal="center", vertical="center", wrap_text=True))
     rs0 = r + 1
-    for pos in sorted(F):
+    for pos in POS_ORDER:
         r += 1
         fd, fl, fq, tl, tq = F[pos]
         # số hiệu chạy theo số liệu: chỉ đánh số các thanh có số lượng > 0 (giống bảng thống kê trên bản vẽ)

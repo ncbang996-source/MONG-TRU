@@ -7,7 +7,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
-from mongtru import export, kl_excel, model, view3d  # noqa: E402
+from mongtru import export, kl_excel, model, sheet2, view3d  # noqa: E402
 from mongtru.geom import Geo  # noqa: E402
 
 p, warn = model.read_excel(os.path.join(ROOT, "samples", "D112-30.xls"))
@@ -131,9 +131,15 @@ for f, want in ((model.vol_mong, 27.38), (model.vol_lot, 4.096), (model.vol_dao,
 rv = export.build(pv)
 gv = rv.geo
 assert all(k in gv.klb for k in (4, 5)), gv.klb.keys()          # bảng kích thước từng thanh cho thép chiều dài thay đổi
-assert len(rv.origins) == model.n_sheets(pv) == 3
-ids3 = {o.id for o in rv.objs[2]}
-assert all(any(f"bar{k}" in i for i in ids3) for k in gv.klb if k in gv.seq), ids3
+assert len(rv.origins) == model.n_sheets(pv)
+ids = {o.id for objs in rv.objs[1:] for o in objs}
+assert all(any(f"bar{k}" in i for i in ids) for k in gv.klb if k in gv.seq), ids
+# móng lớn hơn, nhiều thanh: bảng kích thước từng thanh chuyển sang tờ 3
+pb = dict(pv, B=4.5, B2=1.6, RC_N=40, RT_S=100, RP_S=200)
+assert model.validate(pb) is None, model.validate(pb)
+rb = export.build(pb)
+print("  bố trí bảng móng lớn:", sheet2.table_plan(rb.geo)[0], len(rb.origins), "tờ")
+export.pdf_bytes(rb)
 export.pdf_bytes(rv)
 export.save_dxf(rv, os.path.join(d, "vat.dxf"))
 kl_excel.export(pv, gv, os.path.join(d, "vat.xlsx"))
@@ -149,7 +155,15 @@ g8 = Geo(dict(pv, RC_N=28))
 grp8, st8, nd8 = g8.tie_plan3()
 assert nd8 == 1 and not grp8 and 3 not in st8 and 4 not in st8, (grp8, st8, nd8)
 g8.calc_kl()
-assert {r["pos"]: r for r in g8.kl}[7]["n"] == len(g8.tie_zs()) * 2 * (len(st8) + 1) * 4
+k8 = {r["pos"]: r for r in g8.kl}
+assert k8[7]["n"] == len(g8.tie_zs()) * 2 * len(st8) * 4 and k8[9]["n"] == len(g8.tie_zs()) * 2 * 4   # đai xiên số hiệu riêng
+assert g8.seq[9] == g8.seq[7] + 1 and g8.seq[8] == g8.seq[9] + 1
+# thép chủ cổ móng tựa trên 2 phương thép lớp dưới
+assert abs(g8.pier_z0() - (g8.covb + 2 * g8.db + g8.dc / 2)) < 1e-9
+# tờ 2 không đủ chỗ: bảng thống kê sang tờ 1, không cần tờ 3
+assert sheet2.table_plan(Geo(pv))[0] == "s1" and model.n_sheets(pv) == 2
+r1 = export.build(pv)
+assert any(o.id.endswith("table") for o in r1.objs[0]) and not any(o.id.endswith("table") for o in r1.objs[1])
 grp8, st8, nd8 = Geo(dict(pv, RC_N=28, B1=1.2)).tie_plan3()
 assert nd8 == 0 and grp8 and {3, 4} <= set(grp8), (grp8, st8)
 export.pdf_bytes(export.build(dict(pv, RC_N=28)))

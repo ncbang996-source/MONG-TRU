@@ -17,7 +17,7 @@ from mongtru import _meta, cad, export, frame, kl_excel, model
 from mongtru.ui3d import View3D
 
 APP_NAME = "VE_MONGTRU"
-APP_VER = "1.2.1"
+APP_VER = "1.2.2"
 APP_DESC = "Móng trụ rời (4 trụ) cho móng cột đường dây cao thế bằng thép hình."
 
 

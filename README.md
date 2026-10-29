@@ -11,7 +11,7 @@ App Windows chạy offline, vẽ nhanh bản vẽ **móng trụ rời 4 trụ** 
   - TKBVTC và TKKT có 2 tờ.
     - Tờ 1/2: như TKCS.
     - Tờ 2/2: bố trí thép trụ, thép bản đế (nửa trái lớp trên, nửa phải lớp dưới), mặt cắt cổ móng 1-1, lưới thép đầu trụ, bảng thống kê cốt thép, bảng kích thước từng thanh (thép lớp trên, thanh chống; cổ móng vát thêm thép chủ cổ, đai, đai bát giác, đai phụ).
-    - Các bảng kích thước từng thanh không đủ chỗ ở tờ 2 (thường gặp khi cổ móng vát) thì chuyển hết sang tờ 3/3, tờ 2 ghi chú "BẢNG KÍCH THƯỚC TỪNG THANH XEM TỜ 3/3".
+    - Bảng kích thước từng thanh không đủ chỗ ở khoảng giữa tờ 2 (thường gặp khi cổ móng vát): nếu tờ 1 còn chỗ dưới bảng tổng kê thì đưa bảng thống kê cốt thép sang tờ 1 (tờ 2 ghi chú "BẢNG THỐNG KÊ CỐT THÉP XEM TỜ 1/2"), các bảng kích thước xếp vào khoảng giữa và cột phải tờ 2. Vẫn không đủ thì mới chuyển hết bảng kích thước sang tờ 3/3 (tờ 2 ghi chú "BẢNG KÍCH THƯỚC TỪNG THANH XEM TỜ 3/3").
     - TKKT: chỉ 2 tờ, tờ 2/2 không có bảng thống kê cốt thép và bảng kích thước từng thanh, tag thép không ghi số hiệu (giữ Ø/@ và tên thép). Excel khối lượng xuất bình thường.
   - Tỷ lệ tờ 1 tự chọn: tỷ lệ lớn nhất trong danh sách (1/50 … 1/250) vẽ được đúng tỷ lệ. Chỉ khi 1/250 vẫn không đủ chỗ (hoặc người dùng chọn tỷ lệ lớn hơn mức vừa khổ giấy) thì thu gọn khoảng cách giữa các trụ trên hình, chữ kích thước vẫn ghi giá trị thật.
   - Trình bày hố đào (ô dưới "Mở rộng đáy hố đào"): Tự động / Đào chung 1 hố / Đào riêng từng trụ. Chỉ đổi hình vẽ (mái tượng trưng 1:0,5), không đổi khối lượng.
@@ -46,10 +46,11 @@ App Windows chạy offline, vẽ nhanh bản vẽ **móng trụ rời 4 trụ** 
 - **Thép:** tính và trình bày như app móng bản không dầm: khối lượng tính từ đúng các thanh vẽ ra.
   - Thép bản đế 2 lớp, rải riêng vùng gờ cổ móng và vùng vát. Lớp trên uốn theo mặt vát, 2 đầu móc xuống: dài hv − cv − cvb − (Ø dưới + Ø trên), làm tròn xuống tới 5 mm (vd 187 → 185, 182 → 180). Bảng thống kê ghi chiều dài trung bình (không ghi chữ Ltb), kèm bảng kích thước từng thanh.
   - Thanh chống: lưới theo bước (cả phần dưới cổ móng), chân 100; thân = chiều cao bản đế tại vị trí thanh − 2 lớp bảo vệ (cv + cvb) − 2Ø (Ø lớp dưới + Ø lớp trên); vị trí sát hàng thép chủ cổ móng được dời vào trong / ra ngoài để tránh thép chủ.
-  - Thép chủ cổ móng: neo chân 500 (như app móng bản có dầm).
+  - Thép chủ cổ móng: neo chân 500 (như app móng bản có dầm), đoạn neo tựa trên cả 2 phương thép lớp dưới (tim đoạn neo cao cvb + 2Ø lớp dưới + Ø chủ/2).
   - Đai cổ móng: 2 đai (bằng số lớp lưới) đỡ các lớp lưới thép đầu trụ, còn lại theo bước đai.
   - Đai phụ, đai bát giác: theo quy tắc app cũ (giữ các thanh cách nhau ≤ 400).
-  - Số thanh 1 cạnh chẵn (không có thanh nằm giữa trục): nếu theo quy tắc trên không cần giữ cặp thanh giữa thì không thêm đai; nếu cần thì cổ vát dùng mỗi phương 1 đai thẳng đặt xiên nối 2 thanh giữa của 2 cạnh đối diện (lệch 1 bước thanh), cổ thẳng dùng đai bát giác.
+  - Số thanh 1 cạnh chẵn (không có thanh nằm giữa trục): nếu theo quy tắc trên không cần giữ cặp thanh giữa thì không thêm đai; nếu cần thì cổ vát dùng mỗi phương 1 đai thẳng đặt xiên nối 2 thanh giữa của 2 cạnh đối diện (lệch 1 bước thanh) - đai xiên dài khác đai phụ nên có số hiệu riêng; cổ thẳng dùng đai bát giác.
+  - Leader chú thích không chạy trùng nét thép (vd nhánh đứng của tag đai phụ đặt giữa 2 thanh chủ).
   - Tag thép bản đế trên hình bố trí thép trụ: 1 nhánh chỉ chấm tròn, 1 nhánh chỉ thanh nằm ngang, 2 nhánh cách nhau ≥ 1 bước rải.
   - Bảng tổng kê và Excel khối lượng cộng thêm dự phòng thép (ô H29), không ghi chú trên bản vẽ. Bảng thống kê cốt thép không cộng dự phòng.
   - Excel: mục phân loại theo đường kính liệt kê đủ các Ø trong bảng tra. Đổi Ø ở THONG SO sang đường kính không có cột ở sheet TONG KE thì TONG KE hiện "Có đường kính mới - xuất lại file".

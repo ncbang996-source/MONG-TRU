@@ -20,7 +20,8 @@ ANCHOR = 0.5         # đoạn neo chân thép chủ cổ móng (m), cố địn
 
 NAMES = {1: "Thép bản đế lớp dưới", 2: "Thép bản đế lớp trên (uốn theo mặt vát)", 3: "Thanh chống",
          4: "Thép chủ cổ móng", 5: "Đai cổ móng", 6: "Đai bát giác cổ móng", 7: "Đai phụ thẳng cổ móng",
-         8: "Lưới thép đầu trụ"}
+         8: "Lưới thép đầu trụ", 9: "Đai xiên cổ móng"}
+POS_ORDER = (1, 2, 3, 4, 5, 6, 7, 9, 8)    # thứ tự số hiệu thép (đai xiên ngay sau đai phụ thẳng)
 
 
 def ceil_(x):
@@ -251,8 +252,8 @@ class Geo:
         return [z0 - i * (z0 - z1) / (n - 1) for i in range(n)]
 
     def pier_z0(self):
-        """Cao độ chân thép chủ cổ móng (tựa trên lưới dưới)."""
-        return self.covb + 2 * self.db
+        """Cao độ tim đoạn neo chân thép chủ cổ móng: tựa trên cả 2 phương thép lớp dưới."""
+        return self.covb + 2 * self.db + self.dc / 2
 
     def pier_vert(self):
         return self.z_col_top() - self.pier_z0()
@@ -398,12 +399,18 @@ class Geo:
             f_ = sum(x[1] for x in od) / nt
             R(6, g("RP_D"), sum(lo) / nt, nt, [2000 * a_, 1414.2136 * (f_ - a_), 1000 * HOOK])
         nd = self.tie_plan3()[2]
-        if st or nd:
-            s7 = [self.b_at(z) - 2 * cov for z in tz for _ in range(2 * len(st))] + \
-                 [self.diag_tie(z) for z in tz for _ in range(2 * nd)]
-            b7 = group([(s_ + 2 * HOOK, [1000 * s_, 1000 * HOOK, 1000 * HOOK]) for s_ in s7], 0.0, n)
+        b9 = []
+        for pos, s7 in ((7, [self.b_at(z) - 2 * cov for z in tz for _ in range(2 * len(st))]),
+                        (9, [self.diag_tie(z) for z in tz for _ in range(2 * nd)])):
+            if not s7:                                # 9: đai xiên - chiều dài khác đai phụ thẳng -> số hiệu riêng
+                continue
+            bb = group([(s_ + 2 * HOOK, [1000 * s_, 1000 * HOOK, 1000 * HOOK]) for s_ in s7], 0.0, n)
+            if pos == 7:
+                b7 = bb
+            else:
+                b9 = bb
             sa7 = sum(s7) / len(s7)
-            R(7, g("RP_D"), sa7 + 2 * HOOK, len(s7), [1000 * HOOK, 1000 * sa7, 1000 * HOOK])
+            R(pos, g("RP_D"), sa7 + 2 * HOOK, len(s7), [1000 * HOOK, 1000 * sa7, 1000 * HOOK])
         # 8: lưới thép đầu trụ
         hh = self.bb / 2 - cov
         nn = 1 + ceil_(2 * hh / (g("RL_S") / 1000.0) - 1e-6)
@@ -416,7 +423,7 @@ class Geo:
         self.kl = rows
         self.klc = sorted((d, v[0], v[1]) for d, v in cls.items())
         self.klb = {2: b2, 3: b3}
-        for pos, bt_ in ((4, b4), (5, b5), (6, b6), (7, b7)):
+        for pos, bt_ in ((4, b4), (5, b5), (6, b6), (7, b7), (9, b9)):
             if len(bt_) > 1:                          # cổ móng vát: chiều dài từng thanh khác nhau
                 self.klb[pos] = bt_
         self.seq = {r["pos"]: i for i, r in enumerate(rows, 1)}

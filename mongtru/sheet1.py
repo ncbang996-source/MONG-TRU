@@ -346,7 +346,8 @@ def draw_plan(c: Ctx, g: Geo):
     draw_route(c, g, cx, cy, reach, k * (g.P + 0.6 * g.Bh))       # phân giác dài quá khe hở, chưa tới mép bản đế
     E = g.P + g.Bh + model.ML
     if int(g.p["HT"]) != 0:                               # trục đứng không có hướng tuyến: ký hiệu đối xứng ở đầu trên
-        ys0 = v.y(E) + 9.5                               # trên đường kích thước bản đế trụ góc phải
+        gap = v.x(g.P - g.Bh) - cx                        # mép bản đế trụ phải -> trục đứng (giấy)
+        ys0 = v.y(E) + (3.0 if gap > 7.0 else 9.5)        # khe hẹp: đặt trên đường kích thước bản đế trụ phải
         c.ln("TRUC", cx, v.y(g.P + g.Bh + 0.3), cx, ys0 + 3.5)
         sym(c, cx, ys0)
     sym_r(c, v.x(-E) - 3.0, cy, 90.0)
@@ -368,5 +369,8 @@ def draw(c: Ctx, g: Geo):
     with c.group("plan", "Mặt bằng móng"):
         draw_plan(c, g)
     yb = tables.summary(c, g, 405.0, 267.0)
+    from . import sheet2
+    if model.is_detail(g.p) and sheet2.steel_on_s1(g):     # tờ 2 không đủ chỗ: bảng thống kê cốt thép ở tờ 1
+        yb = tables.steel_table(c, g, sheet2.S1_X, sheet2.S1_TOP, sheet2.S1_BOT) - 4.0
     note_at(c, 268.0, min(yb - 14.0, 90.0), ["- XEM GHI CHÚ CHUNG TẠI BẢN VẼ SỐ: " + str(g.p.get("CODE", "")),
                                              "- KÍCH THƯỚC GHI TRÊN BẢN VẼ TÍNH BẰNG mm, CAO ĐỘ TÍNH BẰNG m."])

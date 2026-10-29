@@ -79,7 +79,7 @@ def shape(c: Ctx, r, x, y, w, h):
         lbl(c, xm, yc + s + 0.9, ni(d[0]))
         lbl(c, xm + s + 3.5, yc + s - 1.0, ni(d[1]))
         lbl(c, xm - s - 3.0, yc - s + 1.0, ni(d[2]))
-    elif pos == 7:
+    elif pos in (7, 9):
         x0, x1 = x + 0.15 * w + 3.0, x + w - 0.15 * w - 3.0
         tie(c, lay, x0, yc - 1.5, 1.0, 0.0, x1 - x0, 0.7, 2.0)
         lbl(c, xm, yc + 0.2, ni(d[1]))
@@ -180,7 +180,7 @@ def _bar_shape(c: Ctx, pos, x0, x1, yc):
         c.txc("BANG", xm_, yc + r_ + 1.4, 1.6, "L1")
         c.txc("BANG", xm_ + r_ + 1.6, yc + r_ - 0.2, 1.6, "L2")
         c.txc("BANG", xm_ - r_ - 1.8, yc - r_ + 0.6, 1.6, "L3")
-    elif pos == 7:                       # đai phụ thẳng: thân L1, 2 móc L2, L3
+    elif pos in (7, 9):                  # đai phụ thẳng / đai xiên: thân L1, 2 móc L2, L3
         tie(c, "BANG", x0 + 2.0, yc - 0.8, 1.0, 0.0, x1 - x0 - 4.0, 0.5, 1.4)
         c.txc("BANG", 0.5 * (x0 + x1), yc + 1.2, 1.6, "L1")
         c.txc("BANG", x0 - 0.8, yc + 1.6, 1.6, "L2")
