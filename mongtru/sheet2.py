@@ -418,7 +418,7 @@ def draw(c: Ctx, g: Geo):
         return
     mode, place, rh = table_plan(g)
     if mode == "s3":
-        note.append("- BẢNG KÍCH THƯỚC TỪNG THANH XEM TỜ 3/3.")
+        note.append(f"- BẢNG KÍCH THƯỚC TỪNG THANH XEM TỜ {getattr(g, 'tables_ref', '3/3')}.")
     if mode == "s1":
         note.append("- BẢNG THỐNG KÊ CỐT THÉP XEM TỜ 1/2.")
         note_at(c, XT, 280.0, note)
@@ -518,7 +518,7 @@ def table_plan(g: Geo):
         return "s2", [], tables.BT_RH
     top, bot = mid_box(g)
     opts = [("s2", [(MX0, top, bot)])]
-    if steel_fits_s1(g):
+    if steel_fits_s1(g) and not getattr(g, "no_s1", False):    # móng 2 loại: tờ 1 dành cho tổng kê
         opts.append(("s1", [(MX0, top, bot), (XT, RIGHT_TOP, RIGHT_BOT)]))
     for mode, cols in opts:
         for rh in (tables.BT_RH, 4.5, 4.0):
