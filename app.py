@@ -17,7 +17,7 @@ from mongtru import _meta, cad, export, frame, kl_excel, model
 from mongtru.ui3d import View3D
 
 APP_NAME = "VE_MONGTRU"
-APP_VER = "1.2.2"
+APP_VER = "1.0.0"
 APP_DESC = "Móng trụ rời (4 trụ) cho móng cột đường dây cao thế bằng thép hình."
 
 
@@ -143,6 +143,8 @@ class App(tk.Tk):
         self._undo: list = []        # Ctrl+Z / Ctrl+Y khi sắp xếp
         self._redo: list = []
         self._job = None
+        self._info_job = None        # trễ thông báo lỗi khi đang gõ
+        self._kjob = None            # gom các lần nhấn phím mũi tên thành 1 lần dựng lại / 1 lần hoàn tác
         self._build_ui()
         self._fill()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -251,7 +253,7 @@ class App(tk.Tk):
         self.v_auto = tk.BooleanVar(value=self.st.get("auto", True))
         ttk.Checkbutton(g3, text="Tự cập nhật", variable=self.v_auto, style="Bar.TCheckbutton").pack(side="left", padx=6)
         self.v_arr = tk.BooleanVar(value=False)
-        ttk.Checkbutton(g3, text="Sắp xếp (kéo thả, Ctrl+Z / Ctrl+Y)", variable=self.v_arr, style="Bar.TCheckbutton",
+        ttk.Checkbutton(g3, text="Sắp xếp (kéo thả, phím mũi tên, Ctrl+Z / Ctrl+Y)", variable=self.v_arr, style="Bar.TCheckbutton",
                         command=self._redraw).pack(side="left", padx=(0, 6))
         g4 = group("Xuất")
         btn(g4, "PDF", self.export_pdf, "Export")
@@ -327,6 +329,10 @@ class App(tk.Tk):
                                               None if self._view_covered() else self._paint(fast=True)))
         self.pv.bind("<ButtonRelease-2>", lambda e: self._paint_later(60))
         self.bind("<Escape>", lambda e: (setattr(self, "_sel", []), self._overlay()))
+        # sắp xếp: phím mũi tên dịch đối tượng đang chọn 1 mm (Shift: 5 mm) trên giấy
+        for k, d in (("<Left>", (-1, 0)), ("<Right>", (1, 0)), ("<Up>", (0, 1)), ("<Down>", (0, -1))):
+            self.pv.bind(k, lambda e, d=d: self._key_move(e, *d))
+            self.pv.bind("<Shift-" + k[1:], lambda e, d=d: self._key_move(e, *d))
         self.pv.bind("<ButtonPress-3>", self._context)
         self.pv.bind("<Motion>", self._hover)
 
@@ -491,11 +497,17 @@ class App(tk.Tk):
         if getattr(self, "_filling", False):
             return
         self._bump()
-        self._update_info()
+        if self._info_job:                         # đang gõ: chờ ~1,2 s rồi mới kiểm tra / báo lỗi
+            self.after_cancel(self._info_job)
+        self._info_job = self.after(1200, self._info_later)
         if self.v_auto.get():
             if self._job:
                 self.after_cancel(self._job)
             self._job = self.after(1200, self.preview)
+
+    def _info_later(self):
+        self._info_job = None
+        self._update_info()
 
     def _set_err(self, text):
         self.l_err.config(text=text)
@@ -870,7 +882,7 @@ class App(tk.Tk):
         for o in self._objs():
             x1, y1, x2, y2 = self._box_px(o)
             moved = any(o.id == k or o.id.startswith(k + ".") for k in self.pending)
-            if o.id in sel and len(sel) > 1:
+            if o.id in sel:                        # đang chọn (kéo thả / phím mũi tên)
                 self.pv.create_rectangle(x1 - 3, y1 - 3, x2 + 3, y2 + 3, outline="#6A1B9A", width=2, tags="ov")
                 continue
             if o.kind == "anchor" and o.id.endswith("@k"):        # điểm gãy leader
@@ -909,7 +921,7 @@ class App(tk.Tk):
         if not self.v_arr.get():
             return
         o = self._pick(e)
-        self.l_state.config(text=f"{o.label or o.id}  (kéo để dịch chuyển, Ctrl+nhấp: chọn nhiều, "
+        self.l_state.config(text=f"{o.label or o.id}  (kéo / nhấp rồi dùng phím mũi tên để dịch chuyển, Ctrl+nhấp: chọn nhiều, "
                                  f"chuột phải: về mặc định)" if o else "")
 
     def _press(self, e):
@@ -917,6 +929,7 @@ class App(tk.Tk):
             self.pv.scan_mark(e.x, e.y)
             self._drag = "pan"
             return
+        self.pv.focus_set()                        # nhận phím mũi tên
         o = self._pick(e)
         self._dlast = (0.0, 0.0)
         sel = getattr(self, "_sel", [])
@@ -983,10 +996,34 @@ class App(tk.Tk):
         if abs(dx) < 0.2 and abs(dy) < 0.2:
             self._overlay()
             return
-        ids = [o.id for o in objs]
-        # bỏ đối tượng con khi đã chọn cả đối tượng cha (tránh dịch 2 lần)
-        ids = [i for i in ids if not any(i != j and (i.startswith(j + ".") or i.startswith(j + "@")) for j in ids)]
-        self._move_many(ids, dx, dy)
+        self._move_many(self._top_ids([o.id for o in objs]), dx, dy)
+
+    @staticmethod
+    def _top_ids(ids):
+        """Bỏ đối tượng con khi đã chọn cả đối tượng cha (tránh dịch 2 lần)."""
+        return [i for i in ids if not any(i != j and (i.startswith(j + ".") or i.startswith(j + "@")) for j in ids)]
+
+    def _key_move(self, e, ux, uy):
+        if not self.v_arr.get() or not getattr(self, "_sel", []) or not self._geom:
+            return None
+        step = 5.0 if e.state & 0x0001 else 1.0
+        ids = self._top_ids(list(self._sel))
+        if self._kjob is None:
+            self._snap()
+        else:
+            self.after_cancel(self._kjob)
+        for oid in ids:
+            cur = self.offsets.get(oid, [0.0, 0.0])
+            self.offsets[oid] = [round(cur[0] + ux * step, 2), round(cur[1] + uy * step, 2)]
+            pd = self.pending.get(oid, [0.0, 0.0])
+            self.pending[oid] = [pd[0] + ux * step, pd[1] + uy * step]
+        self._overlay()
+        self._kjob = self.after(450, self._key_done)
+        return "break"
+
+    def _key_done(self):
+        self._kjob = None
+        self._layout_changed()
 
     def _snap(self):
         """Lưu trạng thái sắp xếp trước khi thay đổi (cho Ctrl+Z)."""

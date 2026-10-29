@@ -52,9 +52,10 @@ class V:
     def hatch(self, lay, pts, pattern, scale, **kw):
         return self.c.hatch(lay, [self.P(*q) for q in pts], pattern, scale, **kw)
 
-    def dimH(self, p1, p2, yd, tp=None, text="<>"):
+    def dimH(self, p1, p2, yd, tp=None, text="<>", override=None):
         """p1, p2 cục bộ (m); yd giấy."""
-        return self.c.dimH("DIM", self.P(*p1), self.P(*p2), yd, tp, dimname=self.dimname, text=text)
+        return self.c.dimH("DIM", self.P(*p1), self.P(*p2), yd, tp, dimname=self.dimname, text=text,
+                           override=override)
 
     def dimV(self, p1, p2, xd, tp=None, text="<>"):
         return self.c.dimV("DIM", self.P(*p1), self.P(*p2), xd, tp, dimname=self.dimname, text=text)

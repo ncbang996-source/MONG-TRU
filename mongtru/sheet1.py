@@ -295,6 +295,11 @@ def plan_outline(c: Ctx, g: Geo, v: V, lot=True):
     v.ln("TRUC", 0.0, -e, 0.0, e)
 
 
+def sym_top(g: Geo, v: V):
+    """(y giấy tâm ký hiệu đối xứng đầu trên trục đứng mặt bằng, khe giấy từ trục tới mép bản đế trụ phải)."""
+    return v.y(g.P + g.Bh + model.ML) + 3.0, v.x(g.P - g.Bh) - v.x(0.0)
+
+
 def dim_plan(c: Ctx, g: Geo, v: V, lot=True):
     d, B, ml, P = g.T, g.Bh, (model.ML if lot else 0.0), g.P
     w100 = txtw("100", 2.0)
@@ -324,7 +329,15 @@ def dim_plan(c: Ctx, g: Geo, v: V, lot=True):
     if g.tp > 1e-6:
         v.dimH((P - bh, P + bh), (P + bh, P + bh), v.y(P + pm) + 4.0)
         v.dimV((P + bh, P - bh), (P + bh, P + bh), v.x(P + pm) + 4.0)
-    v.dimH((P - B, P + B), (P + B, P + B), v.y(E) + 5.0)
+    ys0, gap = sym_top(g, v)
+    if gap > 7.0:
+        v.dimH((P - B, P + B), (P + B, P + B), v.y(E) + 5.0)
+    else:
+        # khe hẹp: đường gióng trái đi qua ký hiệu đối xứng trục đứng -> tự vẽ, ngắt quãng qua ký hiệu
+        v.dimH((P - B, P + B), (P + B, P + B), v.y(E) + 7.5, override={"dimse1": 1})
+        xg = v.x(P - B)
+        c.ln("DIM", xg, v.y(P + B) + 1.0, xg, ys0 - 2.6)
+        c.ln("DIM", xg, ys0 + 3.4, xg, v.y(E) + 8.5)
     v.dimV((P + B, P - B), (P + B, P + B), v.x(E) + 5.0)
 
 
@@ -345,11 +358,10 @@ def draw_plan(c: Ctx, g: Geo):
     reach = k * (g.P + g.Bh)
     draw_route(c, g, cx, cy, reach, k * (g.P + 0.6 * g.Bh))       # phân giác dài quá khe hở, chưa tới mép bản đế
     E = g.P + g.Bh + model.ML
-    if int(g.p["HT"]) != 0:                               # trục đứng không có hướng tuyến: ký hiệu đối xứng ở đầu trên
-        gap = v.x(g.P - g.Bh) - cx                        # mép bản đế trụ phải -> trục đứng (giấy)
-        ys0 = v.y(E) + (3.0 if gap > 7.0 else 9.5)        # khe hẹp: đặt trên đường kích thước bản đế trụ phải
-        c.ln("TRUC", cx, v.y(g.P + g.Bh + 0.3), cx, ys0 + 3.5)
-        sym(c, cx, ys0)
+    # ký hiệu đối xứng ở đầu trên trục đứng (mọi hình thức cột)
+    ys0, _ = sym_top(g, v)
+    c.ln("TRUC", cx, v.y(g.P + g.Bh + 0.3), cx, ys0 + 3.5)
+    sym(c, cx, ys0)
     sym_r(c, v.x(-E) - 3.0, cy, 90.0)
     ya = g.P
     marker(c, v.x(-E) - 22.0, cy + k * ya, 1.0, "A")
