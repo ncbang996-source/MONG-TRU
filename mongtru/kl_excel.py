@@ -7,7 +7,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.workbook.defined_name import DefinedName
 
 from . import model
-from .geom import ANCHOR, CH_LEG, HOOK, KGM, Geo, tie_plan_mg
+from .geom import ANCHOR, CH_LEG, HOOK, KGM, Geo, tie_plan_ex
 
 THIN = Side(style="thin", color="808080")
 BOX = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
@@ -109,18 +109,26 @@ def export(p: dict, g: Geo, path: str):
     r += 2
     ws.cell(row=r, column=2, value="BỐ TRÍ ĐAI PHỤ CỔ MÓNG (chương trình lập, dùng cho sheet KHOI LUONG)").font = B
     r += 1
-    for i, h in enumerate(["Số thanh 1 cạnh m", "g=1: số đai thẳng", "g=1: chỉ số max đai bát giác",
-                           "g=2: số đai thẳng", "g=2: chỉ số max đai bát giác"], 2):
+    heads = ["Số thanh 1 cạnh m"]
+    for gg in (1, 2):
+        for vt in ("cổ thẳng", "cổ vát"):
+            heads += [f"g={gg}, {vt}: số đai thẳng", f"g={gg}, {vt}: chỉ số max đai bát giác",
+                      f"g={gg}, {vt}: số đai xiên"]
+    for i, h in enumerate(heads, 2):
         _cell(ws, r, i, h, bold=True, fill=HEAD)
     r0 = r + 1
     for m in range(2, 31):
         r += 1
         _cell(ws, r, 2, m)
-        for k, gg in enumerate((1, 2)):
-            grp, st = tie_plan_mg(m, gg)
-            _cell(ws, r, 3 + 2 * k, len(st))
-            _cell(ws, r, 4 + 2 * k, max(grp) if grp else -1)
-    wb.defined_names["TS_DPC"] = DefinedName("TS_DPC", attr_text=f"'THONG SO'!$B${r0}:$F${r}")
+        k = 3
+        for gg in (1, 2):
+            for vt in (False, True):
+                grp, st, nd = tie_plan_ex(m, gg, vt)
+                _cell(ws, r, k, len(st))
+                _cell(ws, r, k + 1, max(grp) if grp else -1)
+                _cell(ws, r, k + 2, nd)
+                k += 3
+    wb.defined_names["TS_DPC"] = DefinedName("TS_DPC", attr_text=f"'THONG SO'!$B${r0}:$N${r}")
 
     # ------------------------------------------------------------------ KHOI LUONG
     wk = wb.create_sheet("KHOI LUONG")
@@ -203,8 +211,8 @@ def export(p: dict, g: Geo, path: str):
     nf2, ns2 = zone("2", "TS_str", "Lớp trên")
     ee = line("", "Mút thanh lớp trên (tính từ tim)", "e", "=TS_Bm/2-TS_cv", "Bm/2 − cv", "m")
     hk2 = line("", "Chân móc 2 đầu thanh lớp trên", "hk2",
-               f"=MAX(0,ROUNDDOWN((TS_hv-TS_cv-TS_cvb-2*(TS_db+TS_dtr)/1000)/0.005+{E},0)*0.005)",
-               "hv − cv − cvb − 2(Ø dưới + Ø trên), làm tròn xuống tới 5 mm (đầu móc cao hơn mặt trên lưới dưới)", "m")
+               f"=MAX(0,ROUNDDOWN((TS_hv-TS_cv-TS_cvb-(TS_db+TS_dtr)/1000)/0.005+{E},0)*0.005)",
+               "hv − cv − cvb − (Ø dưới + Ø trên), làm tròn xuống tới 5 mm", "m")
     kv = line("", "Hệ số dài đoạn xiên", "kv", f"=SQRT(1+((TS_hb-TS_hv)/(TS_Bm/2-{pm}))^2)",
               "√(1 + ((hb − hv)/(Bm/2 − pm))²)", "")
     d0 = line("", "Đoạn xiên thanh trong vùng gờ", "d0", f"=({ee}-{pm})*{kv}", "(e − pm)·kv", "m")
@@ -258,11 +266,22 @@ def export(p: dict, g: Geo, path: str):
     gst = line("", "Bước thanh được đai phụ giữ", "gst", f"=MAX(1,MIN(2,INT(400/{scm})))",
                "Khoảng cách thanh được giữ <= 400 mm: 1 (mọi thanh) hoặc 2 (cách 1 thanh)", "")
     none_ = f"OR({mcm}<=2,AND(1000*(TS_b1-2*TS_cv)<=400,{mcm}<=4))"
+    col = f"(2+6*({gst}-1)+3*(TS_b2>TS_b1+{E}))"
     nst = line("", "Số đai phụ thẳng mỗi mức (mỗi phương)", "nst",
-               f"=IF({none_},0,VLOOKUP({mcm},TS_DPC,IF({gst}=1,2,4),FALSE))",
-               "Tra bảng BỐ TRÍ ĐAI PHỤ CỔ MÓNG (sheet THONG SO) theo m và g", "thanh")
+               f"=IF({none_},0,VLOOKUP({mcm},TS_DPC,{col},FALSE))",
+               "Tra bảng BỐ TRÍ ĐAI PHỤ CỔ MÓNG (sheet THONG SO) theo m, g và cổ thẳng / vát", "thanh")
     gmax = line("", "Chỉ số thanh xa nhất của đai bát giác (−1: không có)", "gmax",
-                f"=IF({none_},-1,VLOOKUP({mcm},TS_DPC,IF({gst}=1,3,5),FALSE))", "Tra bảng như trên", "")
+                f"=IF({none_},-1,VLOOKUP({mcm},TS_DPC,{col}+1,FALSE))", "Tra bảng như trên", "")
+    ndg = line("", "Số đai xiên mỗi mức (mỗi phương)", "ndg",
+               f"=IF({none_},0,VLOOKUP({mcm},TS_DPC,{col}+2,FALSE))",
+               "Cổ vát, số thanh 1 cạnh chẵn: đai thẳng đặt xiên nối 2 thanh giữa của 2 cạnh đối diện", "")
+    zt_ = f"({hh_}-TS_cv-2*TS_dl/1000)"
+    K_ = f"(ROW(OFFSET($A$1,0,0,{nt},1))-1)"
+    bk = f"(TS_b2-{kz}*({zt_}-{K_}*({zt_}-TS_hb)/({nt}-1)-TS_hb))"
+    sdg = line("", "Tổng thân đai xiên các mức (1 phương)", "Sdg",
+               f"=SUMPRODUCT(SQRT(({bk}-2*TS_cv)^2+(({bk}-2*(TS_cv+TS_dh/1000+TS_dcm/2000))/({mcm}-1))^2))",
+               "Mức k: b = cạnh cổ tại mức đai; thân = √((b − 2cv)² + s²), s = (b − 2(cv + Ø đai + Ø chủ/2))/(m − 1)",
+               "m")
     rr = "MAX(0.35,0.5*TS_dcm/1000*40)"
     hb_ = f"(40*({bt7}/2-TS_cv)-0.2-{rr})"
     rt = f"({rr}+0.12)"
@@ -294,8 +313,9 @@ def export(p: dict, g: Geo, path: str):
         5: ("TS_dh", f"4*({b5}-2*TS_cv)+2*TS_hk", f"{n5}*TS_n", "Trung bình: 4(b5 − 2cv) + 2 móc", "n5 × số trụ"),
         6: ("TS_dph", f"IF({gmax}<0,0,8*{oa}+4*SQRT(2)*({of}-{oa})+2*TS_hk)", f"IF({gmax}<0,0,{nt}*TS_n)",
             "8·ao + 4√2(fo − ao) + 2 móc", "nt × số trụ"),
-        7: ("TS_dph", f"{bt7}-2*TS_cv+2*TS_hk", f"{nt}*2*{nst}*TS_n", "Trung bình: b7 − 2cv + 2 móc",
-            "nt × 2 phương × nst × số trụ"),
+        7: ("TS_dph", f"IF({nst}+{ndg}=0,0,({nst}*{nt}*({bt7}-2*TS_cv)+{ndg}*{sdg})/({nt}*({nst}+{ndg}))+2*TS_hk)",
+            f"{nt}*2*({nst}+{ndg})*TS_n", "Trung bình: (nst·nt·(b7 − 2cv) + ndg·Sdg)/(nt·(nst + ndg)) + 2 móc",
+            "nt × 2 phương × (nst + ndg) × số trụ"),
         8: ("TS_dl", "TS_b1-2*TS_cv", f"TS_nl*2*{nn8}*TS_n", "b − 2cv", "số lớp × 2 phương × n8 × số trụ"),
     }
     from .geom import NAMES

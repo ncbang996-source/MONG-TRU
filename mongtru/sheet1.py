@@ -225,9 +225,9 @@ def pad_plan(c: Ctx, g: Geo, v: V, xc, yc, lot=True, bolts=True, sx=1, sy=1):
         v.rect("HINH THUC", xc - B - ml, yc - B - ml, xc + B + ml, yc + B + ml)
     v.rect("MAIN", xc - B, yc - B, xc + B, yc + B)
     v.rect("MAIN", xc - pm, yc - pm, xc + pm, yc + pm)
-    for sx in (-1, 1):
-        for sy in (-1, 1):
-            v.ln("MAIN", xc + sx * pm, yc + sy * pm, xc + sx * B, yc + sy * B)
+    for qx in (-1, 1):
+        for qy in (-1, 1):
+            v.ln("MAIN", xc + qx * pm, yc + qy * pm, xc + qx * B, yc + qy * B)
     v.rect("MAIN", xc - bh, yc - bh, xc + bh, yc + bh)
     x0, y0, x1, y1 = top_sq(g, xc, yc, sx, sy)
     if g.tp > 1e-6:
@@ -272,7 +272,7 @@ def draw_route(c: Ctx, g: Geo, cx, cy, lh, lx):
         vee(c, cx, cy, cx - lh * sn, cy - lh * cs)
         c.txr("CHU", cx - a * sn - 2.4 * cs, cy + a * cs - 2.4 * sn, 2.0, T_ROUTE, 90.0 + 10.0)
         vee(c, cx, cy, cx - lx, cy)
-        c.tx("CHU", cx - lx + 1.0, cy + 1.0, 2.0, T_BISECT)        # chữ ở đầu xa của mũi tên phân giác
+        c.tx("CHU", cx - lx + 2.5, cy + 1.6, 2.0, T_BISECT)        # chữ ở đầu xa của mũi tên phân giác
     elif ht == 2:
         vee(c, cx, cy, cx, cy - lh)
         c.txr("CHU", cx - 2.4, cy - a, 2.0, T_ROUTE, 90.0)
@@ -318,12 +318,12 @@ def dim_plan(c: Ctx, g: Geo, v: V, lot=True):
     v.dimH((-P - B, -E), (P + B, -E), y0 - 14.0, text=tot)
     # cổ móng (đỉnh b1, chân b2) + bản đế trụ trên phải
     x0_, y0_, x1_, y1_ = top_sq(g, P, P, 1, 1)
-    v.dimH((x0_, y1_), (x1_, y1_), v.y(P + g.b2 / 2) + 3.5)
-    v.dimV((x0_, y0_), (x0_, y1_), v.x(P - g.b2 / 2) - 3.5)
+    bh, pm = g.b2 / 2, g.pm
+    v.dimH((x0_, y0_), (x1_, y0_), v.y(P - pm) - 4.0)
+    v.dimV((x0_, y0_), (x0_, y1_), v.x(P - pm) - 4.0)
     if g.tp > 1e-6:
-        bh = g.b2 / 2
-        v.dimH((P - bh, P - bh), (P + bh, P - bh), v.y(P - bh) - 3.5)
-        v.dimV((P + bh, P - bh), (P + bh, P + bh), v.x(P + bh) + 3.5)
+        v.dimH((P - bh, P + bh), (P + bh, P + bh), v.y(P + pm) + 4.0)
+        v.dimV((P + bh, P - bh), (P + bh, P + bh), v.x(P + pm) + 4.0)
     v.dimH((P - B, P + B), (P + B, P + B), v.y(E) + 5.0)
     v.dimV((P + B, P - B), (P + B, P + B), v.x(E) + 5.0)
 
@@ -343,8 +343,12 @@ def draw_plan(c: Ctx, g: Geo):
             c.pl("CHU", False, [(cx, cy), (cx - 3.0, cy + 4.7), (cx - 4.0 - w, cy + 4.7)], fixed=(0,))
             c.tx("CHU", cx - 3.9 - w, cy + 4.7 + 0.9, 2.0, T_AXIS)
     reach = k * (g.P + g.Bh)
-    draw_route(c, g, cx, cy, reach, reach - 1.0)          # phân giác dài tới mép bản đế
+    draw_route(c, g, cx, cy, reach, k * (g.P + 0.6 * g.Bh))       # phân giác dài quá khe hở, chưa tới mép bản đế
     E = g.P + g.Bh + model.ML
+    if int(g.p["HT"]) != 0:                               # trục đứng không có hướng tuyến: ký hiệu đối xứng ở đầu trên
+        ys0 = v.y(E) + 9.5                               # trên đường kích thước bản đế trụ góc phải
+        c.ln("TRUC", cx, v.y(g.P + g.Bh + 0.3), cx, ys0 + 3.5)
+        sym(c, cx, ys0)
     sym_r(c, v.x(-E) - 3.0, cy, 90.0)
     ya = g.P
     marker(c, v.x(-E) - 22.0, cy + k * ya, 1.0, "A")

@@ -134,7 +134,7 @@ class Scene:
         db_ = model.bolt_dia(p) / 1000.0
         ob = model.bolt_gap(p, g.bb) / 2
         tc = g.top_c()
-        grp, st = g.tie_plan()
+        grp, st, ndg = g.tie_plan3()
         for X, Y in piers:
             ox, oy = (1 if X > 0 else -1), (1 if Y > 0 else -1)     # hướng mặt ngoài (vát) của cổ móng
             W = lambda u, v, z: (X + ox * u, Y + oy * v, z)
@@ -183,6 +183,10 @@ class Scene:
                     t = us[j] - cz + dc / 2 + dp / 2
                     self.L("dai", COL["tie"], dp, [Q(t, -wt, z), Q(t, wt, z)])
                     self.L("dai", COL["tie"], dp, [Q(-wt, t, z - dp), Q(wt, t, z - dp)])
+                if ndg:                       # đai xiên nối 2 thanh giữa của 2 cạnh đối diện
+                    ta, tb = us[len(us) // 2 - 1] - cz, us[len(us) // 2] - cz
+                    self.L("dai", COL["tie"], dp, [Q(ta, -wt, z), Q(tb, wt, z)])
+                    self.L("dai", COL["tie"], dp, [Q(-wt, tb, z - dp), Q(wt, ta, z - dp)])
             # lưới đầu trụ
             for zz in g.mesh_zs():
                 for j in range(nd + 1):

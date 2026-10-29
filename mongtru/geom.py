@@ -102,6 +102,24 @@ def tie_plan_mg(m, gstep):
     return grp, sorted(st)
 
 
+def tie_plan_ex(m, gstep, taper):
+    """Như tie_plan_mg, thêm trường hợp số thanh 1 cạnh chẵn (không có thanh nằm giữa trục) mà cần giữ cặp thanh
+    giữa: cổ vát -> mỗi phương 1 đai thẳng đặt xiên nối 2 thanh giữa của 2 cạnh đối diện; cổ thẳng -> đai bát giác.
+    Trả về (nhóm đai bát giác, các thanh có đai phụ thẳng, số đai xiên mỗi phương)."""
+    grp, st = tie_plan_mg(m, gstep)
+    if m % 2 or m < 4:
+        return grp, st, 0
+    mid = {m // 2 - 1, m // 2}
+    held = set(st) | set(grp or [])
+    if not held & mid:
+        return grp, st, 0
+    if taper:
+        return None, sorted(held - mid), 1
+    if not grp:
+        grp = sorted(mid)
+    return grp, sorted(held - set(grp)), 0
+
+
 def group(items, extra, n):
     """Gom các thanh cùng chiều dài (làm tròn mm). items: [(chiều dài m, [L1, L2, L3] mm)].
     Trả về các dòng [L1, L2, L3, dài mm, số lượng cả móng, tổng dài m], dài trước."""
@@ -167,9 +185,8 @@ class Geo:
         return d0, d0 + self.dt
 
     def hook_top(self):
-        """Chân móc 2 đầu thanh lớp trên (m): hv − cv − cvb − 2(Ø dưới + Ø trên), làm tròn XUỐNG tới 5 mm
-        -> đầu móc luôn cao hơn mặt trên lưới dưới."""
-        h = self.hv - self.cov - self.covb - 2 * (self.db + self.dt)
+        """Chân móc 2 đầu thanh lớp trên (m): hv − cv − cvb − (Ø dưới + Ø trên), làm tròn XUỐNG tới 5 mm."""
+        h = self.hv - self.cov - self.covb - (self.db + self.dt)
         return max(0.0, 0.005 * math.floor(h / 0.005 + 1e-6))
 
     def top_bar(self, a):
@@ -278,13 +295,23 @@ class Geo:
         z = self.z_col_top() if z is None else z
         return [self.bar_u(i, z) for i in range(self.m_bars())]
 
-    def tie_plan(self):
+    def tie_plan3(self):
+        """(nhóm đai bát giác, thanh có đai phụ thẳng, số đai xiên mỗi phương) - xem tie_plan_ex."""
         m = self.m_bars()
         w = 1000.0 * (self.bb - 2 * self.cov)
         if m <= 2 or (w <= 400.0 and m <= 4):
-            return None, []
+            return None, [], 0
         s = w / (m - 1)
-        return tie_plan_mg(m, max(1, min(2, int(400.0 / s))))
+        return tie_plan_ex(m, max(1, min(2, int(400.0 / s))), self.tp > 1e-6)
+
+    def tie_plan(self):
+        return self.tie_plan3()[:2]
+
+    def diag_tie(self, z):
+        """Chiều dài thân đai xiên tại cao độ z: nối 2 cạnh đối diện, lệch 1 bước thanh."""
+        b = self.b_at(z)
+        s = (b - 2 * self.inset()) / (self.m_bars() - 1)
+        return math.hypot(b - 2 * self.cov, s)
 
     def oct_dim(self, b=None):
         """(nửa cạnh thẳng, nửa bề rộng) đai bát giác (m) với cạnh cổ b - như app móng bản có dầm."""
@@ -370,12 +397,13 @@ class Geo:
             a_ = sum(x[0] for x in od) / nt
             f_ = sum(x[1] for x in od) / nt
             R(6, g("RP_D"), sum(lo) / nt, nt, [2000 * a_, 1414.2136 * (f_ - a_), 1000 * HOOK])
-        if st:
-            s7 = [self.b_at(z) - 2 * cov for z in tz]
-            b7 = group([(s_ + 2 * HOOK, [1000 * s_, 1000 * HOOK, 1000 * HOOK]) for s_ in s7 for _ in range(2 * len(st))],
-                       0.0, n)
-            sa7 = sum(s7) / nt
-            R(7, g("RP_D"), sa7 + 2 * HOOK, nt * 2 * len(st), [1000 * HOOK, 1000 * sa7, 1000 * HOOK])
+        nd = self.tie_plan3()[2]
+        if st or nd:
+            s7 = [self.b_at(z) - 2 * cov for z in tz for _ in range(2 * len(st))] + \
+                 [self.diag_tie(z) for z in tz for _ in range(2 * nd)]
+            b7 = group([(s_ + 2 * HOOK, [1000 * s_, 1000 * HOOK, 1000 * HOOK]) for s_ in s7], 0.0, n)
+            sa7 = sum(s7) / len(s7)
+            R(7, g("RP_D"), sa7 + 2 * HOOK, len(s7), [1000 * HOOK, 1000 * sa7, 1000 * HOOK])
         # 8: lưới thép đầu trụ
         hh = self.bb / 2 - cov
         nn = 1 + ceil_(2 * hh / (g("RL_S") / 1000.0) - 1e-6)

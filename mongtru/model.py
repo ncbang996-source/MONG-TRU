@@ -63,13 +63,13 @@ def default_params() -> dict:
     }
 
 
-# thông số không có trong Excel: giữ lại khi mở file Excel khác
-KEEP_KEYS = ("MABV", "PIT_DRAW")
+# thông số giữ lại khi mở file Excel khác: không giữ gì (mã số bản vẽ đọc J7 + K7, lựa chọn trình bày về mặc định)
+KEEP_KEYS = ()
 PIT_DRAW_NAMES = ["Tự động", "Đào chung 1 hố", "Đào riêng từng trụ"]
 
 
 def fresh_params(prev: dict | None = None) -> dict:
-    """Nền khi mở file Excel mới: thông số mặc định + các thông số không có trong Excel của lần trước."""
+    """Nền khi mở file Excel mới: thông số mặc định (cả lựa chọn trình bày hố đào) + KEEP_KEYS của lần trước."""
     p = default_params()
     if prev:
         p.update({k: prev[k] for k in KEEP_KEYS if k in prev})

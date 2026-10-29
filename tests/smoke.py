@@ -47,14 +47,14 @@ for ov in (dict(BT=8.0), dict(RC_N=32, B1=1.2, B2=1.2, B=5.5, BT=8.06, H1=4.0, H
     view3d.Scene(Geo(q), quarter=True)
 print("OK - Excel khoi luong, TKCS, cac truong hop khac")
 
-# --- móc 2 đầu thép lớp trên: bội số 5 mm, đầu móc không thấp hơn mặt trên lưới dưới
+# --- móc 2 đầu thép lớp trên: hv − cv − cvb − (Ø dưới + Ø trên), làm tròn xuống bội số 5 mm
+import math  # noqa: E402
 for hv in (0.25, 0.30, 0.35, 0.45):
     q = dict(p, HV=hv, HB=max(p["HB"], hv + 0.2))
     g2 = Geo(q)
     hk = g2.hook_top()
-    assert abs(hk * 1000 / 5 - round(hk * 1000 / 5)) < 1e-6, (hv, hk)
-    z_end = g2.ztop(g2.Bh - g2.cov) - (g2.cov + g2.dt / 2) - hk        # đầu móc thanh ngoài cùng lớp trên
-    assert z_end >= g2.covb + 2 * g2.db - 1e-9, (hv, hk, z_end)
+    raw = 1000 * (hv - g2.cov - g2.covb - g2.db - g2.dt)
+    assert abs(1000 * hk - 5 * math.floor(raw / 5 + 1e-6)) < 1e-6, (hv, hk, raw)
     g2.calc_kl()
     assert abs({r["pos"]: r for r in g2.kl}[2]["dims"][2] - 1000 * hk) < 1e-6
 
@@ -81,11 +81,11 @@ make_xlsx(f1, C5="MT-FILE1", J6="MA-FILE1", C24=8, H29=5, B12=20.0, D20="M42-300
 make_xlsx(f2, C5=None, J6=None)
 p1, _ = model.read_excel(f1, "TONG HOP", model.fresh_params(dict(model.default_params(), MABV="X", PIT_DRAW=2.0)))
 p1["SCALE"] = model.auto_scale(p1)
-assert p1["TENMONG"] == "MT-FILE1" and p1["NPIER"] == 8 and p1["MABV"] == "X" and p1["PIT_DRAW"] == 2.0
+assert p1["TENMONG"] == "MT-FILE1" and p1["NPIER"] == 8 and p1["MABV"] == "" and p1["PIT_DRAW"] == 0.0
 p2, _ = model.read_excel(f2, "TONG HOP", model.fresh_params(p1))
 p2["SCALE"] = model.auto_scale(p2)
 assert p2["TENMONG"] == "" and p2["CODE"] == "" and p2["NPIER"] == 4 and p2["DP"] == 10 and p2["BLN"] == "BLN-M36-250"
-assert p2["MABV"] == "X" and p2["PIT_DRAW"] == 2.0, p2
+assert p2["MABV"] == "" and p2["PIT_DRAW"] == 0.0, p2              # mở file mới: lựa chọn về mặc định
 assert p1["SCALE"] > p2["SCALE"], (p1["SCALE"], p2["SCALE"])          # mở file nhỏ sau file lớn: tỷ lệ đổi lại
 make_xlsx(f2, C22=None, C24=None, H29=None)
 _, w3 = model.read_excel(f2, "TONG HOP", model.fresh_params())
@@ -144,4 +144,14 @@ view3d.Scene(Geo(pv), quarter=True)
 r4 = {r["pos"]: r for r in gv.kl}[4]
 rows = gv.klb[4]
 assert abs(sum(x[3] * x[4] for x in rows) / sum(x[4] for x in rows) - r4["len"]) < 1.0, (r4["len"], rows[:2])
+# đai phụ khi số thanh 1 cạnh chẵn (28 thanh = 8 thanh / cạnh): cổ vát -> đai xiên, cổ thẳng -> đai bát giác
+g8 = Geo(dict(pv, RC_N=28))
+grp8, st8, nd8 = g8.tie_plan3()
+assert nd8 == 1 and not grp8 and 3 not in st8 and 4 not in st8, (grp8, st8, nd8)
+g8.calc_kl()
+assert {r["pos"]: r for r in g8.kl}[7]["n"] == len(g8.tie_zs()) * 2 * (len(st8) + 1) * 4
+grp8, st8, nd8 = Geo(dict(pv, RC_N=28, B1=1.2)).tie_plan3()
+assert nd8 == 0 and grp8 and {3, 4} <= set(grp8), (grp8, st8)
+export.pdf_bytes(export.build(dict(pv, RC_N=28)))
+view3d.Scene(Geo(dict(pv, RC_N=28)))
 print("OK - co mong vat")
