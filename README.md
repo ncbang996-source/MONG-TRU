@@ -68,4 +68,5 @@ python app.py
 - `python tools/render_preview.py [file.xls] [KEY=VAL ...] --out thư_mục`: render ảnh xem trước.
 - `python tests/smoke.py`: kiểm tra nhanh (đọc Excel mẫu, so khối lượng, dựng PDF/DXF/Excel).
 - `python tools/check_kl_excel.py`: đối chiếu công thức Excel khối lượng với chương trình qua LibreOffice (phải ra 0 lỗi).
+- `python tests/regression.py`: khóa định dạng bản 1.0.0 (phải ra 0 chỗ khác mẫu) - xem [docs/KHOA_DINH_DANG.md](docs/KHOA_DINH_DANG.md).
 - Kiến trúc chung: xem [docs/HUONG_DAN_PHAT_TRIEN.md](docs/HUONG_DAN_PHAT_TRIEN.md) (viết cho app móng bản có dầm; package ở app này tên `mongtru`).
