@@ -160,6 +160,31 @@ def _bar_shape(c: Ctx, pos, x0, x1, yc):
         c.txc("BANG", 0.5 * (x0 + x1), yt + 1.4, 1.6, "L1")
         c.txc("BANG", x0 + 0.6, yt + 1.4, 1.6, "L2")
         c.txc("BANG", x0 - 2.0, yt - hd - 0.5 * dh, 1.6, "L3")
+    elif pos == 4:                       # thép chủ cổ móng: thân L1, neo chân L2
+        yb = yc - 2.0
+        c.pl("BANG", False, [(x0, yb + 4.0), (x0, yb), (x1, yb)])
+        c.txc("BANG", 0.5 * (x0 + x1), yb + 1.4, 1.6, "L2")
+        c.txc("BANG", x0 - 2.0, yb + 2.0, 1.6, "L1")
+    elif pos == 5:                       # đai kín: cạnh L1, móc L2
+        s_ = 5.0
+        xa, ya = 0.5 * (x0 + x1) - s_ / 2, yc - s_ / 2
+        c.pl("BANG", True, [(xa, ya), (xa + s_, ya), (xa + s_, ya + s_), (xa, ya + s_)])
+        c.ln("BANG", xa + s_, ya + 0.8, xa + s_ - 1.2, ya + 2.0)
+        c.txc("BANG", xa + s_ / 2, ya + s_ + 1.4, 1.6, "L1")
+        c.txc("BANG", xa + s_ + 2.4, ya + 0.6, 1.6, "L2")
+    elif pos == 6:                       # đai bát giác: cạnh thẳng L1, cạnh xiên L2, móc L3
+        r_, a_ = 3.0, 1.3
+        xm_ = 0.5 * (x0 + x1)
+        c.pl("BANG", True, [(xm_ - a_, yc + r_), (xm_ + a_, yc + r_), (xm_ + r_, yc + a_), (xm_ + r_, yc - a_),
+                            (xm_ + a_, yc - r_), (xm_ - a_, yc - r_), (xm_ - r_, yc - a_), (xm_ - r_, yc + a_)])
+        c.txc("BANG", xm_, yc + r_ + 1.4, 1.6, "L1")
+        c.txc("BANG", xm_ + r_ + 1.6, yc + r_ - 0.2, 1.6, "L2")
+        c.txc("BANG", xm_ - r_ - 1.8, yc - r_ + 0.6, 1.6, "L3")
+    elif pos == 7:                       # đai phụ thẳng: thân L1, 2 móc L2, L3
+        tie(c, "BANG", x0 + 2.0, yc - 0.8, 1.0, 0.0, x1 - x0 - 4.0, 0.5, 1.4)
+        c.txc("BANG", 0.5 * (x0 + x1), yc + 1.2, 1.6, "L1")
+        c.txc("BANG", x0 - 0.8, yc + 1.6, 1.6, "L2")
+        c.txc("BANG", x1 + 0.8, yc + 1.6, 1.6, "L3")
     else:
         yb = yc - 2.0
         c.pl("BANG", False, [(x0, yb + 4.0), (x0, yb), (x1, yb), (x1, yb + 4.0)])
@@ -168,16 +193,28 @@ def _bar_shape(c: Ctx, pos, x0, x1, yc):
         c.txc("BANG", x1 + 2.0, yb + 2.0, 1.6, "L3")
 
 
+BT_HH, BT_RH, BT_GAP = 9.0, 5.0, 9.0      # tiêu đề, dòng, khoảng cách giữa 2 bảng kích thước từng thanh
+
+
+def bar_table_h(g, pos, rh=BT_RH):
+    """Chiều cao bảng kích thước từng thanh (kể cả tên bảng và khoảng cách tới bảng sau)."""
+    rows = g.klb.get(pos)
+    if not rows or pos not in g.seq:
+        return 0.0
+    return BT_HH + len(rows) * rh + BT_GAP
+
+
 def bar_table(c: Ctx, g, tx, ty, pos, ybot=None):
-    """Bảng kích thước từng thanh (thép lớp trên uốn theo mặt vát, thanh chống). Trả về đáy bảng."""
+    """Bảng kích thước từng thanh (thép lớp trên uốn theo mặt vát, thanh chống; cổ móng vát: thép chủ cổ, đai,
+    đai bát giác, đai phụ). Trả về đáy bảng."""
     rows = g.klb.get(pos)
     if not rows or pos not in g.seq:
         return ty
     cw = BT_CW
     wtot = sum(cw)
     n = len(rows)
-    hh = 9.0
-    rh = 5.0
+    hh = BT_HH
+    rh = BT_RH
     if ybot is not None:                     # co chiều cao dòng để bảng không tràn
         rh = max(3.6, min(rh, (ty - hh - ybot) / n))
     with c.table(f"bar{pos}", f"Bảng kích thước thanh số {g.sq(pos)}"):
@@ -202,7 +239,9 @@ def bar_table(c: Ctx, g, tx, ty, pos, ybot=None):
             ym = ty - hh - (ri + 0.5) * rh
             c.txc("BANG", tx + cw[0] / 2, ym, TH, f"{g.sq(pos)}.{ri + 1}")
             xs = x1
-            for i, v in enumerate([ni(r[0]), ni(r[1]), ni(r[2]), ni(r[3]), ni(r[4]), f"{r[5]:.2f}"], start=2):
+            vals = [ni(r[0]) if r[0] else "", ni(r[1]) if r[1] else "", ni(r[2]) if r[2] else "", ni(r[3]),
+                    ni(r[4]), f"{r[5]:.2f}"]
+            for i, v in enumerate(vals, start=2):
                 c.txc("BANG", xs + cw[i] / 2, ym, TH, v)
                 xs += cw[i]
     return ty - hh - n * rh

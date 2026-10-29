@@ -5,6 +5,7 @@ b1 (đỉnh) / b2 (chân). 4 trụ đặt tại 4 góc hình vuông cạnh Bt (k
 Khối lượng bê tông, lót, đào, đắp, ván khuôn theo công thức sheet "KL" của Excel mẫu."""
 from __future__ import annotations
 
+import math
 import re
 
 # ô Excel -> thông số (sheet TONG HOP)
@@ -21,6 +22,7 @@ CELLS_NUM = {
 }
 CELLS_STR = {"GD": "C6", "COT": "C4", "TENMONG": "C5", "BTM": "J4", "BTL": "J5", "CODE": "J6"}
 CELL_HT = "B4"
+CELLS_MABV = ("J7", "K7")                          # mã số bản vẽ (khung tên) = J7 & K7
 CELLS_BLN = ("C20", "D20")
 # cốt thép: (khoá, ô) - Ø, bước (mm), số thanh
 CELLS_REBAR = [
@@ -34,7 +36,7 @@ CELL_RLAYERS = "K28"                               # "02 lớp"
 CELL_NPIER = "C24"                                 # số trụ móng
 CELL_DP = "H29"                                    # dự phòng thép (%)
 
-HT_NAMES = ["ĐỠ", "NÉO", "NÉO DỪNG"]
+HT_NAMES = ["ĐỠ", "NÉO GÓC", "NÉO DỪNG"]
 SCALES = [50, 75, 100, 125, 150, 200, 250]
 SLOPE_DRAW = 0.5          # hệ số mở mái THỂ HIỆN trên bản vẽ (C18 chỉ dùng tính khối lượng)
 TL = 0.1                  # dày bê tông lót (m)
@@ -141,6 +143,10 @@ def read_excel(path: str, sheet: str = "TONG HOP", p: dict | None = None) -> tup
         v = val(a)
         if v not in (None, ""):
             p[k] = str(v).strip()
+    mv = [val(a) for a in CELLS_MABV]
+    if mv[1] not in (None, ""):
+        num = f"{mv[1]:g}" if _num(mv[1]) else str(mv[1]).strip()
+        p["MABV"] = f"{str(mv[0] or '').strip()}{num}"
     v = val(CELL_HT)
     if isinstance(v, str):
         p["HT"] = ht_from_string(v)
@@ -232,16 +238,21 @@ def pit_depth(p) -> float:
     return p["H1"] + TL
 
 
+def pad_dist(p) -> float:
+    """Khoảng cách tim bản đế (m) = Bt + (b2 − b1): cổ vát ra phía ngoài, mặt trong thẳng đứng."""
+    return p["BT"] + p["B2"] - p["B1"]
+
+
 def pit_joint(p) -> bool:
     """True: đào chung 1 hố cho cả 4 trụ (miệng các hố riêng chạm nhau), False: đào từng trụ."""
-    gap = p["BT"] - 2 * (0.5 * p["B"] + p["MPIT"] + pit_depth(p) * p["SLOPE"])
+    gap = pad_dist(p) - 2 * (0.5 * p["B"] + p["MPIT"] + pit_depth(p) * p["SLOPE"])
     return gap <= 0
 
 
 def pit_bottom(p) -> float:
     """Cạnh đáy hố đào (m): hố chung hoặc hố từng trụ."""
     base = p["B"] + 2 * p["MPIT"]
-    return base + p["BT"] if pit_joint(p) else base
+    return base + pad_dist(p) if pit_joint(p) else base
 
 
 def _frustum_rect(h, u, v, w, x):
@@ -261,13 +272,17 @@ def vol_dap(p) -> float:
 
 
 def area_vk(p) -> float:
-    """Ván khuôn: 4 mặt cổ móng + 4 mặt mép bản đế (mặt vát không ghép ván khuôn)."""
-    return npier(p) * (4 * p["B1"] * (H(p) - p["HB"]) + 4 * p["B"] * p["HV"])
+    """Ván khuôn: 4 mặt cổ móng theo diện tích thật (2 mặt trong đứng, 2 mặt ngoài vát - hình thang đáy b1, b2)
+    + 4 mặt mép bản đế (mặt vát bản đế không ghép ván khuôn)."""
+    hc = H(p) - p["HB"]
+    b1, b2 = p["B1"], p["B2"]
+    side = (b1 + b2) / 2 * (hc + math.hypot(hc, b2 - b1))
+    return npier(p) * (2 * side + 4 * p["B"] * p["HV"])
 
 
 def den_bu(p) -> float:
     """Cạnh đền bù (m): bao 4 trụ + 0.5 m mỗi bên."""
-    return p["BT"] + p["B"] + 1.0
+    return pad_dist(p) + p["B"] + 1.0
 
 
 def bolt_dia(p) -> int:
@@ -292,8 +307,8 @@ def validate(p) -> str | None:
     keys = ("B", "H1", "H2", "BT", "B1", "B2", "HB", "HV")
     if min(p[k] for k in keys) < 1e-6:
         return "Có kích thước <= 0. Kiểm tra lại các ô nhập."
-    if abs(p["B1"] - p["B2"]) > 1e-6:
-        return "Chương trình chưa hỗ trợ cổ móng vát (b1 khác b2)."
+    if p["B1"] > p["B2"] + 1e-9:
+        return "Cạnh cổ móng ở đỉnh b1 không được lớn hơn cạnh ở chân b2."
     if p["SLOPE"] < 1e-6:
         return "Hệ số mở mái phải > 0."
     if p["MPIT"] < ML:
@@ -304,8 +319,8 @@ def validate(p) -> str | None:
         return "Hm (chiều sâu chôn) phải lớn hơn hb."
     if p["B"] < p["B2"] + 2 * MPL + 0.2:
         return "Bm quá nhỏ so với cổ móng."
-    if p["BT"] < p["B"] + 0.1:
-        return "Khoảng cách tim trụ Bt phải lớn hơn cạnh bản đế Bm (các bản đế chồng nhau)."
+    if pad_dist(p) < p["B"] + 0.1:
+        return "Khoảng cách tim bản đế Bt + (b2 − b1) phải lớn hơn cạnh bản đế Bm (các bản đế chồng nhau)."
     n = npier(p)
     if n < 4 or n % 4:
         return "Số trụ móng phải là bội số của 4."
@@ -358,9 +373,10 @@ def draw_bt(p, den) -> float:
     k = 1000.0 / den
     B, bt = p["B"], p["BT"]
     side = SLOPE_DRAW * pit_depth(p)
-    w = PAPER_W / k - B - 2 * p["MPIT"] - 2 * side
-    h = PAPER_H / k - (H(p) + TL) - B - 2 * ML
-    lo = max(B + 0.6, B + 2 * p["MPIT"] + 0.2)
+    t = p["B2"] - p["B1"]                     # tim bản đế = tim đỉnh cổ + t
+    w = PAPER_W / k - B - 2 * p["MPIT"] - 2 * side - t
+    h = PAPER_H / k - (H(p) + TL) - B - 2 * ML - t
+    lo = max(B + 0.6, B + 2 * p["MPIT"] + 0.2) - t
     return min(bt, max(lo, min(w, h)))
 
 

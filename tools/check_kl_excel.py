@@ -23,7 +23,11 @@ CASES = {"mau": {}, "b4": dict(B=4.0, BT=7.5), "lon": dict(B=5.5, BT=8.06, B1=1.
                                                              H2=1.0, HB=1.0, HV=0.4, RB_BOT_D=14, RB_TOP_D=14),
          "rc12": dict(RC_N=12), "rc28": dict(RC_N=28, B1=1.0, B2=1.0), "s150": dict(RB_BOT_S=150, RB_TOP_S=250),
          "ch500": dict(RB_CH_S=500), "nl1": dict(RL_N=1), "nl3": dict(RL_N=3), "hv": dict(HV=0.5, HB=0.9),
-         "rc40": dict(RC_N=40, B1=1.4, B2=1.4, B=5.0, BT=6.0), "n8": dict(NPIER=8)}
+         "rc40": dict(RC_N=40, B1=1.4, B2=1.4, B=5.0, BT=6.0), "n8": dict(NPIER=8),
+         # cổ móng vát
+         "vat": dict(B=3.0, B2=1.2, BT=6.3, RC_N=32), "vat_lon": dict(B=4.5, B1=0.8, B2=1.6, BT=8.0, H1=3.0, H2=1.0,
+                                                                          HB=0.9, HV=0.35, RC_N=24, RC_D=22),
+         "vat_ho_chung": dict(B=3.0, B2=1.0, BT=3.6), "vat_rc12": dict(B2=1.0, RC_N=12)}
 base, _ = model.read_excel(os.path.join(ROOT, "samples", "D112-30.xls"))
 geos = {}
 for nm, ov in CASES.items():

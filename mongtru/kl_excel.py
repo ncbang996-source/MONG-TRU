@@ -157,10 +157,12 @@ def export(p: dict, g: Geo, path: str):
     a = line("", "Cạnh gờ quanh chân cổ móng", "a", "=TS_b2+2*TS_mpl", "b2 + 2·mpl", "m")
     hc = line("", "Chiều cao cổ móng (từ mặt gờ)", "hc", "=TS_Hm+TS_d-TS_hb", "Hm + d − hb", "m")
     hd = line("", "Chiều sâu hố đào", "Hd", "=TS_Hm+TS_tl", "Hm + dày lót", "m")
-    kh = line("", "Khoảng hở giữa miệng 2 hố đào riêng", "kh", f"=TS_Bt-2*(0.5*TS_Bm+TS_mp+{hd}*TS_m)",
-              "Bt − 2·(Bm/2 + mp + Hd·m); <= 0 thì đào chung 1 hố cho 4 trụ", "m")
-    a1 = line("", "Cạnh đáy hố đào", "a1", f"=IF({kh}>0,TS_Bm+2*TS_mp,TS_Bt+TS_Bm+2*TS_mp)",
-              "Hố riêng: Bm + 2·mp; hố chung: Bt + Bm + 2·mp", "m")
+    dd = line("", "Khoảng cách tim bản đế", "D", "=TS_Bt+TS_b2-TS_b1",
+              "Bt + (b2 − b1): cổ vát ra phía ngoài, mặt trong thẳng đứng", "m")
+    kh = line("", "Khoảng hở giữa miệng 2 hố đào riêng", "kh", f"={dd}-2*(0.5*TS_Bm+TS_mp+{hd}*TS_m)",
+              "D − 2·(Bm/2 + mp + Hd·m); <= 0 thì đào chung 1 hố cho 4 trụ", "m")
+    a1 = line("", "Cạnh đáy hố đào", "a1", f"=IF({kh}>0,TS_Bm+2*TS_mp,{dd}+TS_Bm+2*TS_mp)",
+              "Hố riêng: Bm + 2·mp; hố chung: D + Bm + 2·mp", "m")
     a2 = line("", "Cạnh miệng hố đào", "a2", f"={a1}+2*TS_m*{hd}", "a1 + 2·m·Hd", "m")
     nh = line("", "Số hố đào", "nh", f"=IF({kh}>0,TS_n,TS_n/4)", "Hố riêng: n; hố chung: n/4", "hố")
     bt_ = line("", "Cạnh cổ móng tại mặt đất", "bd", "=TS_b2+(TS_b1-TS_b2)*(TS_Hm-TS_hb)/(TS_Hm+TS_d-TS_hb)",
@@ -179,13 +181,15 @@ def export(p: dict, g: Geo, path: str):
               "n·d/3·(bd² + b1² + bd·b1)", "m3")
     vdp = line(4, "Đắp đất hoàn trả hố móng", "Vdap", f"={vd}-{vl}-({vb}-{va})", "Vdao − Vlot − (Vbt − Vtr)", "m3", True)
     line(5, "Đất thừa", "Vthua", f"={vd}-{vdp}", "Vdao − Vdap", "m3", True)
-    line(6, "Ván khuôn móng", "VK", f"=TS_n*(4*TS_b1*{hc}+4*TS_Bm*TS_hv)",
-         "n·(4·b1·hc + 4·Bm·hv) (mặt vát không ghép ván khuôn)", "m2", True)
+    line(6, "Ván khuôn móng", "VK",
+         f"=TS_n*((TS_b1+TS_b2)*({hc}+SQRT({hc}^2+(TS_b2-TS_b1)^2))+4*TS_Bm*TS_hv)",
+         "n·[2 mặt cổ đứng + 2 mặt cổ vát: (b1 + b2)·(hc + √(hc² + (b2 − b1)²)) + 4·Bm·hv] "
+         "(mặt vát bản đế không ghép ván khuôn)", "m2", True)
 
     sec("D. CỐT THÉP - ĐẠI LƯỢNG TRUNG GIAN (1 trụ)")
     E = 0.000001
     sp = line("", "Chiều dài rải thép bản đế", "sp", "=TS_Bm-2*TS_cv", "Bm − 2cv", "m")
-    pm = line("", "Nửa gờ phẳng quanh cổ móng", "pm", "=TS_b1/2+TS_mpl", "b/2 + mpl", "m")
+    pm = line("", "Nửa gờ phẳng quanh chân cổ móng", "pm", "=TS_b2/2+TS_mpl", "b2/2 + mpl", "m")
     hl = line("", "Nửa chiều dài rải", "hl", f"={sp}/2", "sp/2", "m")
 
     def zone(sym, s_, nm):
@@ -234,6 +238,20 @@ def export(p: dict, g: Geo, path: str):
     nt = line("", "Số mức đai phụ cổ móng (1 trụ)", "nt",
               f"=1+MAX(1,ROUNDUP(({hh_}-TS_cv-2*TS_dl/1000-TS_hb)/(TS_sph/1000)-{E},0))",
               "1 + ROUNDUP((H − cv − 2Ø lưới − hb)/@ đai phụ)", "mức")
+    # cổ móng vát: cạnh cổ b(z) = b2 − kz·(z − hb); đai / đai phụ có chiều dài tuyến tính theo b -> dùng cao độ TB
+    kz = line("", "Độ vát cổ móng (cạnh giảm theo chiều cao)", "kz", f"=(TS_b2-TS_b1)/({hh_}-TS_hb)",
+              "(b2 − b1)/(H − hb); 0 khi cổ thẳng", "m/m")
+    nl5 = f"({n5}-TS_nl)"
+    z5 = line("", "Cao độ trung bình các đai cổ móng", "z5",
+              f"=(TS_nl*({hh_}-TS_cv-2*TS_dl/1000)-TS_sl/1000*TS_nl*(TS_nl-1)/2"
+              f"+IF({nl5}>0,{nl5}*{z0}-({z0}-TS_hb)*({nl5}+1)/2,0))/{n5}",
+              "Đai đỡ lưới: H − cv − 2Ø lưới − i·@lưới; còn lại rải đều từ z0 xuống hb", "m")
+    b5 = line("", "Cạnh cổ móng trung bình tại các đai", "b5", f"=TS_b2-{kz}*({z5}-TS_hb)", "b2 − kz·(z5 − hb)", "m")
+    bt7 = line("", "Cạnh cổ móng trung bình tại các mức đai phụ", "b7",
+               f"=TS_b2-{kz}*(({hh_}-TS_cv-2*TS_dl/1000+TS_hb)/2-TS_hb)",
+               "Mức đai phụ rải đều từ H − cv − 2Ø lưới xuống hb: cao độ TB = (đỉnh + hb)/2", "m")
+    vc = line("", "Chiều cao đoạn thẳng đứng thép chủ cổ móng", "Vc", f"={hh_}-TS_cv-TS_cvb-2*TS_db/1000",
+              "H − cv − cvb − 2Ø lớp dưới", "m")
     mcm = line("", "Số thanh thép chủ cổ móng 1 cạnh", "mcm", "=1+INT(TS_ncm/4)", "1 + n/4", "thanh")
     scm = line("", "Khoảng cách thanh chủ cổ móng", "scm", f"=1000*(TS_b1-2*TS_cv)/MAX(1,{mcm}-1)",
                "(b − 2cv)/(m − 1)", "mm")
@@ -246,15 +264,23 @@ def export(p: dict, g: Geo, path: str):
     gmax = line("", "Chỉ số thanh xa nhất của đai bát giác (−1: không có)", "gmax",
                 f"=IF({none_},-1,VLOOKUP({mcm},TS_DPC,IF({gst}=1,3,5),FALSE))", "Tra bảng như trên", "")
     rr = "MAX(0.35,0.5*TS_dcm/1000*40)"
-    hb_ = f"(40*(TS_b1/2-TS_cv)-0.2-{rr})"
+    hb_ = f"(40*({bt7}/2-TS_cv)-0.2-{rr})"
     rt = f"({rr}+0.12)"
     oa = line("", "Đai bát giác: nửa cạnh thẳng", "ao",
               f"=IF({gmax}<0,0,(({gmax}-({mcm}-1)/2)*2*{hb_}/({mcm}-1)+0.41421356*{rt})/40)",
-              "Theo hình mặt cắt 1-1 (bo theo thép chủ)", "m")
+              "Theo hình mặt cắt 1-1 (bo theo thép chủ), cạnh cổ b7", "m")
     of = line("", "Đai bát giác: nửa bề rộng", "fo", f"=IF({gmax}<0,0,({hb_}+{rt})/40)", "Theo hình mặt cắt 1-1", "m")
     nn8 = line("", "Số thanh lưới đầu trụ mỗi phương, mỗi lớp", "n8",
                f"=1+ROUNDUP((TS_b1-2*TS_cv)/(TS_sl/1000)-{E},0)", "1 + ROUNDUP((b − 2cv)/@)", "thanh")
 
+    I_ = f"(ROW(OFFSET($A$1,0,0,{mcm},1))-1)"
+    J_ = f"(COLUMN(OFFSET($A$1,0,0,1,{mcm}))-1)"
+    msk = f"((({I_}=0)+({I_}={mcm}-1)+({J_}=0)+({J_}={mcm}-1))>0)"
+    qv = f"({kz}*{vc}/({mcm}-1))"
+    s4 = line("", "Tổng chiều dài đoạn thân thép chủ (1 trụ)", "S4",
+              f"=SUMPRODUCT({msk}*SQRT({vc}^2+({I_}*{qv})^2+({J_}*{qv})^2))",
+              "Thanh (i, j) trên chu vi (i, j tính từ 2 mặt đứng phía trong): √(Vc² + (i·q)² + (j·q)²), "
+              "q = kz·Vc/(m − 1)", "m")
     # công thức từng vị trí: (Ø, chiều dài 1 thanh (m), số lượng cả móng, diễn giải chiều dài, diễn giải số lượng)
     n2 = f"({nf2}+2*{ns2})"
     F = {
@@ -263,12 +289,12 @@ def export(p: dict, g: Geo, path: str):
             "Trung bình: (nf2·Li + 2·So)/(nf2 + 2·ns2)", "2 phương × (nf2 + 2·ns2) × số trụ"),
         3: ("TS_dch", f"{sch}/{nch}^2+2*TS_lch", f"{nch}^2*TS_n", "Trung bình: Sch/nch² + 2 chân 100",
             "nch² × số trụ"),
-        4: ("TS_dcm", f"{hh_}-TS_cv-TS_cvb-2*TS_db/1000+TS_lneo", "TS_ncm*TS_n",
-            "H − cv − cvb − 2Ø lớp dưới + neo 500", "số thanh × số trụ"),
-        5: ("TS_dh", "4*(TS_b1-2*TS_cv)+2*TS_hk", f"{n5}*TS_n", "4(b − 2cv) + 2 móc", "n5 × số trụ"),
+        4: ("TS_dcm", f"{s4}/(4*({mcm}-1))+TS_lneo", "TS_ncm*TS_n",
+            "Trung bình: S4/số thanh + neo 500 (cổ thẳng: H − cv − cvb − 2Ø lớp dưới + 500)", "số thanh × số trụ"),
+        5: ("TS_dh", f"4*({b5}-2*TS_cv)+2*TS_hk", f"{n5}*TS_n", "Trung bình: 4(b5 − 2cv) + 2 móc", "n5 × số trụ"),
         6: ("TS_dph", f"IF({gmax}<0,0,8*{oa}+4*SQRT(2)*({of}-{oa})+2*TS_hk)", f"IF({gmax}<0,0,{nt}*TS_n)",
             "8·ao + 4√2(fo − ao) + 2 móc", "nt × số trụ"),
-        7: ("TS_dph", "TS_b1-2*TS_cv+2*TS_hk", f"{nt}*2*{nst}*TS_n", "b − 2cv + 2 móc",
+        7: ("TS_dph", f"{bt7}-2*TS_cv+2*TS_hk", f"{nt}*2*{nst}*TS_n", "Trung bình: b7 − 2cv + 2 móc",
             "nt × 2 phương × nst × số trụ"),
         8: ("TS_dl", "TS_b1-2*TS_cv", f"TS_nl*2*{nn8}*TS_n", "b − 2cv", "số lớp × 2 phương × n8 × số trụ"),
     }
@@ -338,8 +364,8 @@ def _summary(wb, p, rows, rdia, rtot):
              ("Đào đất (m³)", f"={K}{rows['Vdao']}", "0.00"),
              ("Đắp đất (m³)", f"={K}{rows['Vdap']}", "0.00"),
              ("Ván khuôn (m²)", f"={K}{rows['VK']}", "0.00"),
-             ("Rộng đền bù (m)", "=TS_Bt+TS_Bm+2*0.5", "0.00"),
-             ("Dài đền bù (m)", "=TS_Bt+TS_Bm+2*0.5", "0.00"),
+             ("Rộng đền bù (m)", "=TS_Bt+TS_b2-TS_b1+TS_Bm+2*0.5", "0.00"),
+             ("Dài đền bù (m)", "=TS_Bt+TS_b2-TS_b1+TS_Bm+2*0.5", "0.00"),
              ("Diện đền bù (m²)", None, "0.00"),
              ("Chiều sâu hố đào (m)", f"={K}{rows['Hd']}", "0.00")]
     n = len(cols)

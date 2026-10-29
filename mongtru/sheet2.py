@@ -5,7 +5,7 @@ from __future__ import annotations
 from . import model, tables
 from .cad import Ctx, ensure_dimstyle, txtw
 from .geom import ANCHOR, CH_LEG, Geo, ceil_
-from .sheet1 import bolts_aa, pad_aa, pad_plan
+from .sheet1 import bolts_aa, col_x, pad_aa, pad_plan
 from .view import V, Callouts, cut_line, dai_draw, note_at, ni, phi, sym, tick45, tick_at, tie, title
 
 T_TOP = "LỚP TRÊN"
@@ -29,7 +29,7 @@ def det_scale(g: Geo):
 
 def pier_scale(g: Geo):
     for d in (20, 25, 30, 40, 50):
-        if 1000.0 / d * g.bb <= 50.0:
+        if 1000.0 / d * g.b2 <= 50.0:
             return d
     return 50
 
@@ -40,13 +40,18 @@ def sc_title(c: Ctx, x, y, s, den):
 
 # ---------------------------------------------------------------------------
 def pier_section(c: Ctx, g: Geo, co: Callouts, cx, ytop):
-    """Bố trí thép trụ: mặt cắt qua tim 1 trụ (theo X), z = 0 tại đáy bản đế. Trả về v."""
+    """Bố trí thép trụ: mặt cắt qua tim bản đế 1 trụ (theo X), z = 0 tại đáy bản đế. Trả về v.
+    Mặt vát của cổ móng (phía ngoài) thể hiện bên trái, mặt thẳng đứng (phía tim móng) bên phải."""
     p = g.p
     den = det_scale(g)
     k = 1000.0 / den
     v = V(c, cx, ytop - 14.0 - k * g.H, den)
-    pad_aa(v, g, 0.0)
-    v.ln("TRUC", 0.0, -model.TL - 0.08, 0.0, g.H + 0.1)
+    pad_aa(v, g, 0.0, so=-1)
+    U = lambda i, z: -g.bar_u(i, z)                    # toạ độ hình (lật trái - phải so với toạ độ cục bộ)
+    tc = g.tp / 2                                      # tim đỉnh cổ trên hình
+    colx = lambda z: col_x(g, 0.0, -1, z)
+    v.ln("TRUC", 0.0, -model.TL - 0.08, 0.0, g.hb + 0.1)
+    v.ln("TRUC", tc, g.hb - 0.1, tc, g.H + 0.1)        # tim đỉnh cổ (trùng tim bản đế khi cổ thẳng)
     cov, B = g.cov, g.Bh
     e = B - cov
     # lưới dưới: thanh theo X (ngoài cùng) thấy dài, thanh theo Y là chấm
@@ -80,12 +85,11 @@ def pier_section(c: Ctx, g: Geo, co: Callouts, cx, ytop):
         z1 = zc0 + g.chair_body(x, ych[x])
         sg = 1.0 if x < 0 else -1.0
         v.pl("DAI", False, [(x + sg * CH_LEG, zc0), (x, zc0), (x, z1), (x + sg * CH_LEG, z1)])
-    # cổ móng: thép chủ neo chân quay ra ngoài, đai, lưới đầu trụ
-    us = g.pier_us()
+    # cổ móng: thép chủ (thanh mặt vát nghiêng theo mặt vát) neo chân quay ra ngoài, đai, lưới đầu trụ
+    m = g.m_bars()
     z0, z1 = g.pier_z0(), g.z_col_top()
-    for u in (us[0], us[-1]):
-        sg = 1.0 if u > 0 else -1.0
-        v.pl("COTTHEP", False, [(u, z1), (u, z0), (u + sg * ANCHOR, z0)])
+    for i, sg in ((0, 1.0), (m - 1, -1.0)):
+        v.pl("COTTHEP", False, [(U(i, z1), z1), (U(i, z0), z0), (U(i, z0) + sg * ANCHOR, z0)])
     wh = g.bb / 2 - cov
     rl = dot(p["RL_D"])
     hl = wh - g.g("RT_D") / 1000.0
@@ -94,18 +98,19 @@ def pier_section(c: Ctx, g: Geo, co: Callouts, cx, ytop):
     nm = len(g.mesh_zs())
     for i, z in enumerate(g.mesh_zs()):
         yl = v.y(z) - 0.35
-        c.ln("DAI", v.x(-hl), yl, v.x(hl), yl)
+        c.ln("DAI", v.x(tc - hl), yl, v.x(tc + hl), yl)
         for j in range(nd + 1):
-            c.disc("DAI", v.x(-hl + j * 2 * hl / nd), yl - rl - 0.3, rl)
+            c.disc("DAI", v.x(tc - hl + j * 2 * hl / nd), yl - rl - 0.3, rl)
         yh = yl - 2 * rl - 0.9
-        c.ln("DAI", v.x(-wh), yh, v.x(wh), yh)
+        c.ln("DAI", v.x(tc - wh), yh, v.x(tc + wh), yh)
     for z in g.hoop_zs()[nm:]:
-        v.ln("DAI", -wh, z, wh, z)
-    bolts_aa(c, g, cx)
+        l_, r_ = colx(z)
+        v.ln("DAI", l_ + cov, z, r_ - cov, z)
+    bolts_aa(c, g, cx + k * tc)
     # ---- chú thích
     # 1, 2: thép 2 phương giống nhau -> 1 tag chỉ cả chấm tròn và thanh nằm ngang, đặt ở chỗ trống
     # (giữa đầu neo thép chủ / mép gờ và mép bản đế, tránh thanh chống)
-    us0 = g.pier_us()[-1]
+    us0 = U(0, z0)                                    # thanh mặt đứng (phải) - neo chân quay sang phải
 
     def free(lst, lo, hi):
         cand = [i for i in range(len(lst) - 1) if lo < lst[i] and lst[i + 1] < hi]
@@ -127,18 +132,19 @@ def pier_section(c: Ctx, g: Geo, co: Callouts, cx, ytop):
     co([v.P(x3, zc0 + 0.5 * g.chair_body(x3, ych[x3]))], v.x(x3) - 4.0, v.y(-model.TL) - 11.0, -1, 3, T_CHONG,
        phi(p["RB_CH_D"], p["RB_CH_S"]))
     # 4: thép chủ (bên phải cổ)
-    xp = v.x(g.bb / 2) + 6.0
+    xp = v.x(g.b2 / 2) + 6.0
     hz = g.hoop_zs()
     zq = g.hb + 0.5 * (z1 - g.hb)                     # chú thích thép chủ ở giữa cổ, giữa 2 đai
     hi = min(range(len(hz) - 1), key=lambda i: abs(0.5 * (hz[i] + hz[i + 1]) - zq)) if len(hz) > 1 else 0
     zm = 0.5 * (hz[hi] + hz[hi + 1]) if len(hz) > 1 else zq
-    co([v.P(us[-1], zm), v.P(us[0], zm)], xp, v.y(zm), 1, 4, f"{ni(p['RC_N'])}%%C{ni(p['RC_D'])}", mode=True)
+    co([v.P(U(0, zm), zm), v.P(U(m - 1, zm), zm)], xp, v.y(zm), 1, 4, f"{ni(p['RC_N'])}%%C{ni(p['RC_D'])}",
+       mode=True)
     # 5 (+6, 7): đai - đường đứng qua các đai, dấu xẹt
     zlo = g.hb + 12.0 / v.k                       # trên kích thước gờ cổ móng
     zi = [z for z in hz if zlo < z < zm - 0.1]
     z5 = zi[0] if zi else 0.5 * (g.hb + zm)
     nums = [5] + [q for q in (6, 7) if q in g.seq]
-    xv = v.x(us[-1]) - 2.5                        # đường đứng lệch vào trong, không trùng nét thép chủ
+    xv = v.x(U(0, z1)) - 2.5                      # đường đứng lệch vào trong, không trùng nét thép chủ (mặt đứng)
     with c.item("callout5", f"Chú thích thép {g.sq(5)}"):
         y5 = v.y(z5) - 3.0
         bx = xp
@@ -158,11 +164,12 @@ def pier_section(c: Ctx, g: Geo, co: Callouts, cx, ytop):
             balloon(c, xb + 6.6 * i, y5, g.sq(q))
     # 8: lưới đầu trụ
     zl = g.mesh_zs()
-    co([v.P(hl, zl[0]), v.P(hl - 0.05, zl[min(1, len(zl) - 1)] - p["RL_D"] / 1000.0)], xp, v.y(z1) + 2.0, 1, 8,
+    co([v.P(tc + hl, zl[0]), v.P(tc + hl - 0.05, zl[min(1, len(zl) - 1)] - p["RL_D"] / 1000.0)], xp,
+       v.y(z1) + 2.0, 1, 8,
        T_MESH, phi(p["RL_D"], p["RL_S"]), tick=False)
     # ký hiệu mặt cắt 1-1 trên cổ móng
-    zc = g.hb + 0.78 * (z1 - g.hb)
-    cut_line(c, v.P(-g.bb / 2, zc), v.P(g.bb / 2, zc), "1", side=-1.0, ext=2.0)
+    zc = zcut(g)
+    cut_line(c, v.P(colx(zc)[0], zc), v.P(colx(zc)[1], zc), "1", side=-1.0, ext=2.0)
     dims_pier(c, g, v)
     sc_title(c, cx, v.y(-model.TL) - 17.0, "BỐ TRÍ THÉP TRỤ", den)
     return v
@@ -177,16 +184,19 @@ def dims_pier(c: Ctx, g: Geo, v: V):
     v.dimH((B, -model.TL), (B + ml, -model.TL), yb, (v.x(B + ml) + 1.0 + w100 / 2, yb + 2.0))
     xd = v.x(-B - ml) - 5.0
     zs = [0.0, g.hv, g.hb, g.H]
+    lt, rt = col_x(g, 0.0, -1, g.H)                   # đỉnh cổ (mặt vát bên trái)
     for i in range(3):
-        v.dimV((-B, zs[i]), (-g.bb / 2 if i == 2 else -B, zs[i + 1]), xd)
-    v.dimV((-B, 0.0), (-g.bb / 2, g.H), xd - 7.0)
-    # cổ móng, gờ
+        v.dimV((-B, zs[i]), (lt if i == 2 else -B, zs[i + 1]), xd)
+    v.dimV((-B, 0.0), (lt, g.H), xd - 7.0)
+    # cổ móng (đỉnh b1), gờ quanh chân cổ, chân cổ b2 khi vát
     yt = v.y(g.H) + 7.0
-    v.dimH((-g.bb / 2, g.H), (g.bb / 2, g.H), yt)
+    v.dimH((lt, g.H), (rt, g.H), yt)
     ygr = v.y(g.hb) + 4.0
     for s in (-1, 1):
         tx = v.x(s * g.pm) + s * (1.0 + w100 / 2)
-        v.dimH((s * g.bb / 2, g.hb), (s * g.pm, g.hb), ygr, (tx, ygr + 1.2) if v.k * model.MPL < w100 + 1 else None)
+        v.dimH((s * g.b2 / 2, g.hb), (s * g.pm, g.hb), ygr, (tx, ygr + 1.2) if v.k * model.MPL < w100 + 1 else None)
+    if g.tp > 1e-6:
+        v.dimH((-g.b2 / 2, g.hb), (g.b2 / 2, g.hb), ygr)
 
 
 # ---------------------------------------------------------------------------
@@ -244,13 +254,24 @@ def slab_plan(c: Ctx, g: Geo, co: Callouts, cx, cy, den):
 
 
 # ---------------------------------------------------------------------------
+def zcut(g: Geo):
+    """Cao độ mặt cắt 1-1 trên cổ móng."""
+    return g.hb + 0.78 * (g.z_col_top() - g.hb)
+
+
 def col_section(c: Ctx, g: Geo, co: Callouts, cx, cy):
-    """1-1: mặt cắt ngang cổ móng (thép chủ, đai, đai bát giác, đai phụ)."""
+    """1-1: mặt cắt ngang cổ móng tại cao độ cắt (thép chủ, đai, đai bát giác, đai phụ). (cx, cy): tim tiết diện.
+    Cổ vát: thấy thêm đường bao chân cổ b2 và cạnh vát; mặt đứng (phía tim móng) bên phải và phía trên."""
     p = g.p
     den = pier_scale(g)
     kk, cov = 1000.0 / den, p["COVER"]
-    hh = kk * g.bb / 2
+    bs = g.b_at(zcut(g))                               # cạnh tiết diện tại cao độ cắt
+    hh = kk * bs / 2
     c.rect("MAIN", cx - hh, cy - hh, cx + hh, cy + hh)
+    if g.tp > 1e-6:
+        b2 = kk * g.b2
+        c.rect("MAIN", cx + hh - b2, cy + hh - b2, cx + hh, cy + hh)
+        c.ln("MAIN", cx + hh - b2, cy + hh - b2, cx - hh, cy - hh)
     hb = hh - kk * cov
     hb0 = hb
     dai_draw(c, "DAI", cx - hb, cy - hb, cx + hb, cy + hb, 1.0, 1.3)
@@ -280,12 +301,13 @@ def col_section(c: Ctx, g: Geo, co: Callouts, cx, cy):
         yo = hb + rt
         c.pl("DAI", True, [(cx - xo, cy + yo), (cx + xo, cy + yo), (cx + yo, cy + xo), (cx + yo, cy - xo),
                            (cx + xo, cy - yo), (cx - xo, cy - yo), (cx - yo, cy - xo), (cx - yo, cy + xo)])
-    # bu lông neo (lỗ) trong cổ móng
+    # bu lông neo (lỗ) trong cổ móng, quanh tim đỉnh cổ
     o = kk * model.bolt_gap(p, g.bb) / 2
     rb = 0.5 * kk * model.bolt_dia(p) / 1000.0
+    bc = hh - kk * g.b1 / 2
     for sx in (-1, 1):
         for sy in (-1, 1):
-            x, y = cx + sx * o, cy + sy * o
+            x, y = cx + bc + sx * o, cy + bc + sy * o
             c.ci("CHU", x, y, rb)
             c.ln("CHU", x - 1.6 * rb, y, x + 1.6 * rb, y)
             c.ln("CHU", x, y - 1.6 * rb, x, y + 1.6 * rb)
@@ -306,6 +328,14 @@ def col_section(c: Ctx, g: Geo, co: Callouts, cx, cy):
         co([(cx + xi + rt, yv), (cx + 0.55 * hb, cy + xi - rt)], bx, yv, 1, 7, phi(p["RP_D"], p["RP_S"]),
            "SO LE" if sole else None, mode=True)
     nm = ensure_dimstyle(c.doc, den)
+    if g.tp > 1e-6:
+        b2 = kk * g.b2
+        x0, y0 = cx + hh - b2, cy + hh - b2
+        c.dimH("DIM", (cx - hh, cy + hh), (cx + hh, cy + hh), cy + hh + 10.0, dimname=nm)
+        c.dimH("DIM", (x0, y0), (cx + hh, y0), y0 - 4.5, dimname=nm)
+        c.dimV("DIM", (x0, y0), (x0, cy + hh), x0 - 4.5, dimname=nm)
+        sc_title(c, cx + hh - b2 / 2, y0 - 13.0, "MẶT CẮT 1-1", den)
+        return
     c.dimH("DIM", (cx - hh, cy - hh), (cx + hh, cy - hh), cy - hh - 4.5, dimname=nm)
     c.dimV("DIM", (cx - hh, cy - hh), (cx - hh, cy + hh), cx - hh - 4.5, dimname=nm)
     sc_title(c, cx, cy - hh - 13.0, "MẶT CẮT 1-1", den)
@@ -346,12 +376,15 @@ def draw(c: Ctx, g: Geo):
     ytop = 276.0 - 14.0 - k * (model.TL + 0.0) - 28.0 - k * g.H
     with c.group("plan", "Thép bản đế"):
         slab_plan(c, g, co, cx, ytop - 10.0 - k * (g.Bh + model.ML), den)
-    hp = 1000.0 / pier_scale(g) * g.bb / 2
+    kk = 1000.0 / pier_scale(g)
+    hp = kk * g.bb / 2                                  # nửa lưới đầu trụ
+    hs = kk * g.b_at(zcut(g)) / 2                       # nửa tiết diện 1-1
+    ex = kk * g.b2 - 2 * hs if g.tp > 1e-6 else 0.0     # đường bao chân cổ lòi ra trái / dưới
     xm = 285.0 if tkkt else 205.0
-    y11 = 262.0 - hp
+    y11 = 262.0 - hs
     with c.group("sec11", "Mặt cắt 1-1"):
-        col_section(c, g, co, xm, y11)
-    ym = y11 - hp - 30.0 - hp
+        col_section(c, g, co, xm + ex / 2, y11)
+    ym = y11 - hs - ex - 30.0 - hp
     with c.group("mesh", "Lưới thép đầu trụ"):
         mesh(c, g, co, xm, ym)
     note = ["- XEM GHI CHÚ CHUNG TẠI BẢN VẼ SỐ: " + str(g.p.get("CODE", "")),

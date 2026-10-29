@@ -1,7 +1,9 @@
 """Bố trí hình học, cốt thép và bảng thống kê thép của móng trụ rời.
 
-Toạ độ cục bộ 1 trụ (m): gốc tại tim trụ, X / Y theo 2 cạnh bản đế, z từ đáy bản đế lên.
-4 trụ giống nhau, tim trụ tại (±Bt/2, ±Bt/2) so với tim móng.
+Toạ độ cục bộ 1 trụ (m): gốc tại tim bản đế, X / Y theo 2 cạnh bản đế, z từ đáy bản đế lên.
+Cổ móng vát (b1 đỉnh < b2 chân): 2 mặt phía trong (phía −X, −Y, quay về tim móng) thẳng đứng, 2 mặt phía ngoài
+(+X, +Y) vát. Tim đỉnh cổ (tim chân cột) cách tim bản đế (b2 − b1)/2 về phía trong; các tim đỉnh cổ cách nhau Bt,
+các tim bản đế cách nhau Bt + (b2 − b1). 4 trụ giống nhau (đối xứng qua tim móng).
 Thép bản đế rải theo vùng (gờ cổ móng / phần vát) như app móng bản không dầm;
 khối lượng tính từ đúng các thanh vẽ ra, nhân số trụ."""
 from __future__ import annotations
@@ -100,6 +102,18 @@ def tie_plan_mg(m, gstep):
     return grp, sorted(st)
 
 
+def group(items, extra, n):
+    """Gom các thanh cùng chiều dài (làm tròn mm). items: [(chiều dài m, [L1, L2, L3] mm)].
+    Trả về các dòng [L1, L2, L3, dài mm, số lượng cả móng, tổng dài m], dài trước."""
+    out = {}
+    for ln, dims in items:
+        key = int(1000 * ln + extra + 0.5)
+        if key not in out:
+            out[key] = [dims, 0]
+        out[key][1] += 1
+    return [[d[0], d[1], d[2], key, c * n, c * n * key / 1000.0] for key, (d, c) in sorted(out.items(), reverse=True)]
+
+
 class Geo:
     """Toàn bộ kích thước bố trí của 1 móng (4 trụ giống nhau)."""
 
@@ -110,12 +124,15 @@ class Geo:
         self.k = 1000.0 / self.den
         self.n = model.npier(p)
         self.B, self.Bh = g("B"), g("B") / 2
-        self.bb = g("B1")
+        self.b1, self.b2 = g("B1"), g("B2")
+        self.bb = self.b1                                 # cạnh đỉnh cổ (lưới đầu trụ, mặt cắt đầu trụ)
         self.hb, self.hv = g("HB"), g("HV")
         self.H = model.H(p)
         self.bt = g("BT")
+        self.tp = self.b2 - self.b1                       # độ vát (mặt ngoài lệch so với mặt trong)
+        self.kz = self.tp / (self.H - self.hb)            # cạnh cổ giảm theo chiều cao (m/m)
         self.cov, self.covb = g("COVER"), g("COVER_B")
-        self.pm = self.bb / 2 + model.MPL                 # nửa gờ phẳng quanh cổ móng
+        self.pm = self.b2 / 2 + model.MPL                 # nửa gờ phẳng quanh chân cổ móng
         self.db, self.dt = g("RB_BOT_D") / 1000.0, g("RB_TOP_D") / 1000.0
         self.dc = g("RC_D") / 1000.0
 
@@ -172,7 +189,7 @@ class Geo:
         hàng / cột của lưới). Thanh gần hàng thép chủ cổ móng dời vào trong / ra ngoài để tránh thép chủ."""
         s = self.g("RB_CH_S") / 1000.0
         xs = offs(max(s, self.span() - 2 * s), s)
-        w = self.pier_us()[-1]
+        w = self.b2 / 2 - self.inset()                   # hàng thép chủ tại mặt gờ (z = hb), đối xứng qua tim
         cl = self.dc / 2 + self.g("RB_CH_D") / 2000.0 + 0.04
         out = []
         for i, x in enumerate(xs):
@@ -226,11 +243,40 @@ class Geo:
     def m_bars(self):
         return 1 + int(self.g("RC_N") / 4.0)
 
-    def pier_us(self):
-        """Toạ độ tâm thép chủ 1 cạnh cổ móng."""
-        w = self.bb / 2 - self.cov - self.g("RT_D") / 1000.0 - self.dc / 2
+    def b_at(self, z):
+        """Cạnh cổ móng tại cao độ z (kéo dài thẳng xuống trong bản đế)."""
+        return self.b2 - self.kz * (z - self.hb)
+
+    def x_in(self):
+        """Mặt trong (thẳng đứng) của cổ móng."""
+        return -self.b2 / 2
+
+    def col_c(self, z):
+        """Tim tiết diện cổ móng tại cao độ z (theo X và theo Y như nhau)."""
+        return -self.b2 / 2 + self.b_at(z) / 2
+
+    def top_c(self):
+        """Tim đỉnh cổ móng (tim chân cột, cụm bu lông) so với tim bản đế."""
+        return -self.tp / 2
+
+    def inset(self):
+        """Từ mặt bê tông tới tâm thép chủ cổ móng."""
+        return self.cov + self.g("RT_D") / 1000.0 + self.dc / 2
+
+    def bar_u(self, i, z):
+        """Toạ độ tâm thanh thép chủ thứ i (tính từ mặt trong) trên 1 cạnh cổ móng, tại cao độ z."""
+        c, m = self.inset(), self.m_bars()
+        return self.x_in() + c + i * (self.b_at(z) - 2 * c) / (m - 1)
+
+    def ring(self):
+        """Chỉ số (i, j) các thanh thép chủ trên chu vi cổ móng."""
         m = self.m_bars()
-        return [-w + i * 2 * w / (m - 1) for i in range(m)]
+        return [(i, j) for i in range(m) for j in range(m) if i in (0, m - 1) or j in (0, m - 1)]
+
+    def pier_us(self, z=None):
+        """Toạ độ tâm thép chủ 1 cạnh cổ móng tại cao độ z (mặc định đỉnh)."""
+        z = self.z_col_top() if z is None else z
+        return [self.bar_u(i, z) for i in range(self.m_bars())]
 
     def tie_plan(self):
         m = self.m_bars()
@@ -240,13 +286,14 @@ class Geo:
         s = w / (m - 1)
         return tie_plan_mg(m, max(1, min(2, int(400.0 / s))))
 
-    def oct_dim(self):
-        """(nửa cạnh thẳng, nửa bề rộng) đai bát giác (m) - như app móng bản có dầm."""
+    def oct_dim(self, b=None):
+        """(nửa cạnh thẳng, nửa bề rộng) đai bát giác (m) với cạnh cổ b - như app móng bản có dầm."""
+        b = self.bb if b is None else b
         grp = self.tie_plan()[0]
         m = self.m_bars()
         kk = 40.0
         r = max(0.35, 0.5 * self.g("RC_D") / 1000.0 * kk)
-        hb = kk * (self.bb / 2 - self.g("COVER")) - 0.2 - r
+        hb = kk * (b / 2 - self.g("COVER")) - 0.2 - r
         rt = r + 0.12
         s = 2 * hb / (m - 1)
         return ((max(grp) - (m - 1) / 2.0) * s + 0.41421356 * rt) / kk, (hb + rt) / kk
@@ -297,21 +344,38 @@ class Geo:
             ln = body + 2000 * CH_LEG
             b3.append([body, 1000 * CH_LEG, 1000 * CH_LEG, ln, c * n, c * n * ln / 1000.0])
         R(3, g("RB_CH_D"), tot3 / len(ch), len(ch), [1000 * CH_LEG, 1000 * CH_LEG, 1000 * (tot3 / len(ch) - 2 * CH_LEG)])
-        # 4: thép chủ cổ móng, neo chân
+        # 4: thép chủ cổ móng, neo chân - cổ vát: thanh nghiêng theo vị trí, dài khác nhau
         vert = self.pier_vert()
-        R(4, g("RC_D"), vert + ANCHOR, int(g("RC_N")), [1000 * ANCHOR, 1000 * vert])
-        # 5: đai cổ móng
-        side = self.bb - 2 * cov
-        R(5, g("RT_D"), 4 * side + 2 * HOOK, len(self.hoop_zs()), [1000 * HOOK, 1000 * side])
-        # 6: đai bát giác, 7: đai phụ thẳng
+        m = self.m_bars()
+        q = self.kz * vert / (m - 1)
+        lens = [math.sqrt(vert ** 2 + (i * q) ** 2 + (j * q) ** 2) for i, j in self.ring()]
+        b4 = group([(L_, [1000 * L_, 1000 * ANCHOR, 0.0]) for L_ in lens], 1000 * ANCHOR, n)
+        avg = sum(lens) / len(lens)
+        R(4, g("RC_D"), avg + ANCHOR, len(lens), [1000 * ANCHOR, 1000 * avg])
+        # 5: đai cổ móng - cạnh theo cao độ
+        hz = self.hoop_zs()
+        sides = [self.b_at(z) - 2 * cov for z in hz]
+        b5 = group([(4 * s_ + 2 * HOOK, [1000 * s_, 1000 * HOOK, 0.0]) for s_ in sides], 0.0, n)
+        sa = sum(sides) / len(sides)
+        R(5, g("RT_D"), 4 * sa + 2 * HOOK, len(hz), [1000 * HOOK, 1000 * sa])
+        # 6: đai bát giác, 7: đai phụ thẳng - theo cao độ
         grp, st = self.tie_plan()
-        nt = len(self.tie_zs())
+        tz = self.tie_zs()
+        nt = len(tz)
+        b6 = b7 = []
         if grp:
-            a_, f_ = self.oct_dim()
-            ln = 8 * a_ + 4 * math.sqrt(2) * (f_ - a_) + 2 * HOOK
-            R(6, g("RP_D"), ln, nt, [2000 * a_, 1414.2136 * (f_ - a_), 1000 * HOOK])
+            od = [self.oct_dim(self.b_at(z)) for z in tz]
+            lo = [8 * a_ + 4 * math.sqrt(2) * (f_ - a_) + 2 * HOOK for a_, f_ in od]
+            b6 = group([(L_, [2000 * a_, 1414.2136 * (f_ - a_), 1000 * HOOK]) for L_, (a_, f_) in zip(lo, od)], 0.0, n)
+            a_ = sum(x[0] for x in od) / nt
+            f_ = sum(x[1] for x in od) / nt
+            R(6, g("RP_D"), sum(lo) / nt, nt, [2000 * a_, 1414.2136 * (f_ - a_), 1000 * HOOK])
         if st:
-            R(7, g("RP_D"), side + 2 * HOOK, nt * 2 * len(st), [1000 * HOOK, 1000 * side, 1000 * HOOK])
+            s7 = [self.b_at(z) - 2 * cov for z in tz]
+            b7 = group([(s_ + 2 * HOOK, [1000 * s_, 1000 * HOOK, 1000 * HOOK]) for s_ in s7 for _ in range(2 * len(st))],
+                       0.0, n)
+            sa7 = sum(s7) / nt
+            R(7, g("RP_D"), sa7 + 2 * HOOK, nt * 2 * len(st), [1000 * HOOK, 1000 * sa7, 1000 * HOOK])
         # 8: lưới thép đầu trụ
         hh = self.bb / 2 - cov
         nn = 1 + ceil_(2 * hh / (g("RL_S") / 1000.0) - 1e-6)
@@ -324,6 +388,9 @@ class Geo:
         self.kl = rows
         self.klc = sorted((d, v[0], v[1]) for d, v in cls.items())
         self.klb = {2: b2, 3: b3}
+        for pos, bt_ in ((4, b4), (5, b5), (6, b6), (7, b7)):
+            if len(bt_) > 1:                          # cổ móng vát: chiều dài từng thanh khác nhau
+                self.klb[pos] = bt_
         self.seq = {r["pos"]: i for i, r in enumerate(rows, 1)}
         return rows
 
