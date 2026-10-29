@@ -119,3 +119,29 @@ ids = {o.id for o in r.objs[1]}
 assert not any("table" in i or ".bar" in i for i in ids), ids
 assert any("table" in o.id for o in res.objs[1])
 print("OK - moc lop tren, doc 2 file, ty le, trinh bay ho dao, TKKT")
+
+# --- cổ móng vát (N112-30(60).xls): khối lượng theo sheet KL, ván khuôn theo diện tích vát thật
+pv, wv = model.read_excel(os.path.join(ROOT, "samples", "N112-30(60).xls"))
+pv["SCALE"] = model.auto_scale(pv)
+assert not wv, wv
+assert pv["B2"] > pv["B1"] and int(pv["HT"]) == 1 and pv["MABV"] == "2511TNC2.F.NM.C.201", pv
+for f, want in ((model.vol_mong, 27.38), (model.vol_lot, 4.096), (model.vol_dao, 255.563), (model.vol_dap, 225.227),
+                (model.area_vk, 49.768)):
+    assert abs(f(pv) - want) < 0.001, (f.__name__, f(pv), want)
+rv = export.build(pv)
+gv = rv.geo
+assert all(k in gv.klb for k in (4, 5)), gv.klb.keys()          # bảng kích thước từng thanh cho thép chiều dài thay đổi
+assert len(rv.origins) == model.n_sheets(pv) == 3
+ids3 = {o.id for o in rv.objs[2]}
+assert all(any(f"bar{k}" in i for i in ids3) for k in gv.klb if k in gv.seq), ids3
+export.pdf_bytes(rv)
+export.save_dxf(rv, os.path.join(d, "vat.dxf"))
+kl_excel.export(pv, gv, os.path.join(d, "vat.xlsx"))
+assert len(export.build(dict(pv, GD="TKKT")).origins) == 2
+view3d.Scene(gv)
+view3d.Scene(Geo(pv), quarter=True)
+# chiều dài trung bình thép chủ cổ = trung bình bảng kích thước từng thanh
+r4 = {r["pos"]: r for r in gv.kl}[4]
+rows = gv.klb[4]
+assert abs(sum(x[3] * x[4] for x in rows) / sum(x[4] for x in rows) - r4["len"]) < 1.0, (r4["len"], rows[:2])
+print("OK - co mong vat")

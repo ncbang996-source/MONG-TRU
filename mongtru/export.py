@@ -45,7 +45,8 @@ def build(p: dict, frame_path: str | None = None, fields: dict | None = None, of
     g = Geo(p)
     g.calc_kl()
     detail = model.is_detail(p)
-    nsheet = 2 if detail else 1
+    s3 = detail and sheet2.need_sheet3(g)
+    nsheet = 3 if s3 else 2 if detail else 1
     origins = [(0.0, 0.0)]
     msp = doc.modelspace()
     handles = []
@@ -64,6 +65,14 @@ def build(p: dict, frame_path: str | None = None, fields: dict | None = None, of
         sheet2.draw(c2, g)
         handles.append({e.dxf.handle for e in list(msp)[n0:]})
         objs.append(c2.objs)
+    if s3:
+        origins.append((2 * SHEET_DX, 0.0))
+        n0 = len(msp)
+        frame.place(doc, 2 * SHEET_DX, 0.0, title_values(p, sheet2.det_scale(g), 3, nsheet), fields, tags)
+        c3 = Ctx(doc, msp, 2 * SHEET_DX, 0.0, g.den, offsets, "s3")
+        sheet2.draw3(c3, g)
+        handles.append({e.dxf.handle for e in list(msp)[n0:]})
+        objs.append(c3.objs)
     ole = frame.ole_images(frame_path) if frame_path else []
     return Result(doc, g, origins, ole, handles, objs)
 

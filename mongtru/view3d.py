@@ -74,7 +74,7 @@ class Scene:
     def pad_faces(self, X, Y, sx, sy):
         """Mặt bê tông 1/4 trụ (góc phần tư sx, sy của trụ tại X, Y)."""
         g = self.g
-        B, pm, bh, hb, hv, H = g.Bh, g.pm, g.bb / 2, g.hb, g.hv, g.H
+        B, pm, bh, hb, hv = g.Bh, g.pm, g.b2 / 2, g.hb, g.hv
         P = lambda u, w, z: (X + sx * u, Y + sy * w, z)
         fs = [
             [P(0, 0, 0), P(B, 0, 0), P(B, B, 0), P(0, B, 0)],
@@ -83,17 +83,24 @@ class Scene:
             [P(B, 0, hv), P(B, B, hv), P(pm, pm, hb), P(pm, 0, hb)],
             [P(0, B, hv), P(B, B, hv), P(pm, pm, hb), P(0, pm, hb)],
             [P(bh, 0, hb), P(pm, 0, hb), P(pm, pm, hb), P(0, pm, hb), P(0, bh, hb), P(bh, bh, hb)],
-            [P(bh, 0, hb), P(bh, bh, hb), P(bh, bh, H), P(bh, 0, H)],
-            [P(0, bh, hb), P(bh, bh, hb), P(bh, bh, H), P(0, bh, H)],
-            [P(0, 0, H), P(bh, 0, H), P(bh, bh, H), P(0, bh, H)],
         ]
         return fs
+
+    def col_faces(self, X, Y, sx, sy):
+        """Cổ móng (vát 2 mặt ngoài): chân b2 tại hb, đỉnh b1 sát mặt trong. sx, sy: hướng mặt ngoài."""
+        g = self.g
+        x0, hb, H = g.x_in(), g.hb, g.H
+        P = lambda u, w, z: (X + sx * u, Y + sy * w, z)
+        a, b = x0 + g.b2, x0 + g.b1
+        bot = [P(x0, x0, hb), P(a, x0, hb), P(a, a, hb), P(x0, a, hb)]
+        top = [P(x0, x0, H), P(b, x0, H), P(b, b, H), P(x0, b, H)]
+        return [top] + [[bot[i], bot[(i + 1) % 4], top[(i + 1) % 4], top[i]] for i in range(4)]
 
     def build(self):
         g = self.g
         p = g.p
         g.calc_kl() if not getattr(g, "kl", None) else None
-        d = g.bt / 2
+        d = (g.bt + g.tp) / 2                     # tim bản đế
         B, cov, H = g.Bh, g.cov, g.H
         e = B - cov
         ml = model.ML
@@ -108,6 +115,7 @@ class Scene:
             for sx in (-1, 1):
                 for sy in (-1, 1):
                     self.F("bt", bt, al, self.pad_faces(X, Y, sx, sy))
+            self.F("bt", bt, al, self.col_faces(X, Y, 1 if X > 0 else -1, 1 if Y > 0 else -1))
         zx, zy = g.z_bot()
         d0, d1 = g.d_top()
         hk = g.hook_top()
@@ -119,19 +127,17 @@ class Scene:
         dc = g.dc
         dh = p["RT_D"] / 1000.0
         dp = p["RP_D"] / 1000.0
-        us = g.pier_us()
-        w = us[-1]
-        m = len(us)
-        ring = [(u, -w) for u in us] + [(w, u) for u in us[1:]] + \
-               [(u, w) for u in reversed(us[:-1])] + [(-w, u) for u in reversed(us[1:-1])]
         z0, z1 = g.pier_z0(), g.z_col_top()
         dl, sl = p["RL_D"] / 1000.0, p["RL_S"] / 1000.0
         wl = g.bb / 2 - cov - dh
         nd = max(1, math.ceil(2 * wl / sl - 1e-6))
         db_ = model.bolt_dia(p) / 1000.0
         ob = model.bolt_gap(p, g.bb) / 2
+        tc = g.top_c()
         grp, st = g.tie_plan()
         for X, Y in piers:
+            ox, oy = (1 if X > 0 else -1), (1 if Y > 0 else -1)     # hướng mặt ngoài (vát) của cổ móng
+            W = lambda u, v, z: (X + ox * u, Y + oy * v, z)
             # lưới dưới
             for y in xb:
                 self.L("slab", COL["slab_x"], db, [(X - e, Y + y, zx), (X + e, Y + y, zx)])
@@ -150,43 +156,48 @@ class Scene:
                 sg = -1.0 if x > 0 else 1.0
                 self.L("slab", COL["chair"], dch, [(X + x + sg * CH_LEG, Y + y, zc0), (X + x, Y + y, zc0),
                                                    (X + x, Y + y, z1c), (X + x + sg * CH_LEG, Y + y, z1c)])
-            # thép chủ cổ móng, neo chân quay ra ngoài
-            for u, v in ring:
-                ax = (math.copysign(ANCHOR, u), 0.0) if abs(u) >= abs(v) - 1e-9 else (0.0, math.copysign(ANCHOR, v))
-                self.L("pier", COL["pier"], dc, [(X + u, Y + v, z1), (X + u, Y + v, z0),
-                                                 (X + u + ax[0], Y + v + ax[1], z0)])
-            wh = g.bb / 2 - cov - dh / 2
+            # thép chủ cổ móng (theo mặt vát), neo chân quay ra ngoài
+            c0 = g.col_c(z0)
+            for i, j in g.ring():
+                ut, vt, ub, vb = g.bar_u(i, z1), g.bar_u(j, z1), g.bar_u(i, z0), g.bar_u(j, z0)
+                du, dv = ub - c0, vb - c0
+                ax = (math.copysign(ANCHOR, du), 0.0) if abs(du) >= abs(dv) - 1e-9 else (0.0, math.copysign(ANCHOR, dv))
+                self.L("pier", COL["pier"], dc, [W(ut, vt, z1), W(ub, vb, z0), W(ub + ax[0], vb + ax[1], z0)])
             for z in g.hoop_zs():
-                self.L("dai", COL["hoop"], dh, [(X - wh, Y - wh, z), (X + wh, Y - wh, z), (X + wh, Y + wh, z),
-                                                (X - wh, Y + wh, z)], True)
-            wt = w + dc / 2 + dp / 2
+                a0 = g.x_in() + cov + dh / 2
+                a1 = g.x_in() + g.b_at(z) - cov - dh / 2
+                self.L("dai", COL["hoop"], dh, [W(a0, a0, z), W(a1, a0, z), W(a1, a1, z), W(a0, a1, z)], True)
             for z in g.tie_zs():
+                us = g.pier_us(z)
+                cz = g.col_c(z)
+                w = us[-1] - cz
+                wt = w + dc / 2 + dp / 2
                 z -= 0.03
+                Q = lambda a_, b_, zz: W(cz + a_, cz + b_, zz)
                 if grp:
-                    xo = abs(us[max(grp)]) + 0.41421356 * (dc / 2 + dp / 2)
-                    self.L("dai", COL["tie"], dp, [(X + a_, Y + b_, z) for a_, b_ in
+                    xo = abs(us[max(grp)] - cz) + 0.41421356 * (dc / 2 + dp / 2)
+                    self.L("dai", COL["tie"], dp, [Q(a_, b_, z) for a_, b_ in
                                                    ((-xo, wt), (xo, wt), (wt, xo), (wt, -xo), (xo, -wt), (-xo, -wt),
                                                     (-wt, -xo), (-wt, xo))], True)
                 for j in st:
-                    t = us[j] + dc / 2 + dp / 2
-                    self.L("dai", COL["tie"], dp, [(X + t, Y - wt, z), (X + t, Y + wt, z)])
-                    self.L("dai", COL["tie"], dp, [(X - wt, Y + t, z - dp), (X + wt, Y + t, z - dp)])
+                    t = us[j] - cz + dc / 2 + dp / 2
+                    self.L("dai", COL["tie"], dp, [Q(t, -wt, z), Q(t, wt, z)])
+                    self.L("dai", COL["tie"], dp, [Q(-wt, t, z - dp), Q(wt, t, z - dp)])
             # lưới đầu trụ
             for zz in g.mesh_zs():
                 for j in range(nd + 1):
                     o = -wl + j * 2 * wl / nd
-                    self.L("pier", COL["mesh"], dl, [(X + o, Y - wl, zz), (X + o, Y + wl, zz)])
-                    self.L("pier", COL["mesh"], dl, [(X - wl, Y + o, zz - dl), (X + wl, Y + o, zz - dl)])
+                    self.L("pier", COL["mesh"], dl, [W(tc + o, tc - wl, zz), W(tc + o, tc + wl, zz)])
+                    self.L("pier", COL["mesh"], dl, [W(tc - wl, tc + o, zz - dl), W(tc + wl, tc + o, zz - dl)])
             # bu lông neo (phần nhô lên)
             for bx in (-1, 1):
                 for by in (-1, 1):
-                    px, py = X + bx * ob, Y + by * ob
+                    px, py, _ = W(tc + bx * ob, tc + by * ob, 0.0)
                     self.L("pier", COL["bolt"], db_ * 0.8, [(px, py, H), (px, py, H + 0.25)])
                     hn = 0.9 * db_
                     for zn in (H + 0.06, H + 0.14):
                         self.L("pier", COL["bolt"], 0.012, [(px - hn, py - hn, zn), (px + hn, py - hn, zn),
                                                            (px + hn, py + hn, zn), (px - hn, py + hn, zn)], True)
-        _ = m
 
     def bounds(self):
         pts = np.array([p for f in self.faces for p in f[3]] or [(0, 0, 0)])

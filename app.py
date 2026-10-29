@@ -17,7 +17,7 @@ from mongtru import _meta, cad, export, frame, kl_excel, model
 from mongtru.ui3d import View3D
 
 APP_NAME = "VE_MONGTRU"
-APP_VER = "1.1.0"
+APP_VER = "1.2.0"
 APP_DESC = "Móng trụ rời (4 trụ) cho móng cột đường dây cao thế bằng thép hình."
 
 
@@ -399,7 +399,7 @@ class App(tk.Tk):
             return e
 
         head("1. Thông tin chung")
-        row("Hình thức cột", "HT", 16, values=["Đỡ", "Néo", "Néo dừng"])
+        row("Hình thức cột", "HT", 16, values=["Đỡ", "Néo góc", "Néo dừng"])
         row("Loại cột", "COT", 16)
         row("Tên móng (trống = tự đặt)", "TENMONG", 20)
         row("Giai đoạn thiết kế", "GD", 12, values=STAGES)
@@ -448,7 +448,7 @@ class App(tk.Tk):
         p = self.p
         for k, v in self.vars.items():
             if k == "HT":
-                v.set(["Đỡ", "Néo", "Néo dừng"][int(p["HT"])])
+                v.set(["Đỡ", "Néo góc", "Néo dừng"][int(p["HT"])])
             elif k == "PIT_DRAW":
                 v.set(model.PIT_DRAW_NAMES[int(p.get("PIT_DRAW", 0) or 0) % 3])
             elif k in ("COVER", "COVER_B"):
@@ -469,7 +469,7 @@ class App(tk.Tk):
         for k, v in self.vars.items():
             s = v.get().strip()
             if k == "HT":
-                p["HT"] = {"đỡ": 0, "néo": 1, "néo dừng": 2}.get(s.lower(), model.ht_from_string(s))
+                p["HT"] = {"đỡ": 0, "néo góc": 1, "néo": 1, "néo dừng": 2}.get(s.lower(), model.ht_from_string(s))
             elif k == "PIT_DRAW":
                 p[k] = float(model.PIT_DRAW_NAMES.index(s)) if s in model.PIT_DRAW_NAMES else 0.0
             elif k in ("COVER", "COVER_B"):

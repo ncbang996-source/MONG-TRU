@@ -204,7 +204,7 @@ def slab_plan(c: Ctx, g: Geo, co: Callouts, cx, cy, den):
     """Thép bản đế trên mặt bằng 1 trụ: nửa trái lớp trên, nửa phải lớp dưới."""
     p = g.p
     v = V(c, cx, cy, den)
-    pad_plan(c, g, v, 0.0, 0.0, lot=True, bolts=False)
+    pad_plan(c, g, v, 0.0, 0.0, lot=True, bolts=False, sx=-1, sy=-1)
     B, cov = g.Bh, g.cov
     e = B - cov
     v.ln("TRUC", -B - 0.25, 0.0, B + 0.25, 0.0)
@@ -376,15 +376,9 @@ def draw(c: Ctx, g: Geo):
     ytop = 276.0 - 14.0 - k * (model.TL + 0.0) - 28.0 - k * g.H
     with c.group("plan", "Thép bản đế"):
         slab_plan(c, g, co, cx, ytop - 10.0 - k * (g.Bh + model.ML), den)
-    kk = 1000.0 / pier_scale(g)
-    hp = kk * g.bb / 2                                  # nửa lưới đầu trụ
-    hs = kk * g.b_at(zcut(g)) / 2                       # nửa tiết diện 1-1
-    ex = kk * g.b2 - 2 * hs if g.tp > 1e-6 else 0.0     # đường bao chân cổ lòi ra trái / dưới
-    xm = 285.0 if tkkt else 205.0
-    y11 = 262.0 - hs
+    xm, y11, ym, hp, ex = right_layout(g, tkkt)
     with c.group("sec11", "Mặt cắt 1-1"):
         col_section(c, g, co, xm + ex / 2, y11)
-    ym = y11 - hs - ex - 30.0 - hp
     with c.group("mesh", "Lưới thép đầu trụ"):
         mesh(c, g, co, xm, ym)
     note = ["- XEM GHI CHÚ CHUNG TẠI BẢN VẼ SỐ: " + str(g.p.get("CODE", "")),
@@ -392,9 +386,77 @@ def draw(c: Ctx, g: Geo):
     if tkkt:
         note_at(c, 268.0, 90.0, note)
         return
+    s3 = need_sheet3(g)
+    if s3:
+        note.append("- BẢNG KÍCH THƯỚC TỪNG THANH XEM TỜ 3/3.")
     ytb = tables.steel_table(c, g, XT, 280.0, 120.0)
     note_at(c, XT, ytb - 10.0, note)
-    yy = ym - hp - 24.0
-    x0 = XT - 5.0 - sum(tables.BT_CW)
-    for pos in (2, 3):
-        yy = tables.bar_table(c, g, x0, yy, pos, ybot=12.0 if pos == 3 else None) - 9.0
+    if not s3:
+        top, bot = mid_box(g)
+        rh = mid_rh(g)
+        yy = top
+        for pos in bar_list(g):
+            yy = tables.bar_table(c, g, MX0, yy, pos, rh=rh) - tables.BT_GAP
+
+
+# ---------------------------------------------------------------------------
+# bảng kích thước từng thanh: đặt ở khoảng trống giữa tờ 2, không đủ chỗ thì chuyển hết sang tờ 3
+BAR_POS = (2, 3, 4, 5, 6, 7)
+MX0 = XT - 5.0 - sum(tables.BT_CW)                  # mép trái cột bảng giữa tờ 2
+MID_BOT = 12.0
+COLS3 = (20.0, 117.0, 214.0, 311.0)                  # tờ 3: 4 cột bảng
+TOP3, BOT3, BOT3_KT = 280.0, 15.0, 60.0             # cột chạm khung tên (x > 262) dừng ở 60
+
+
+def bar_list(g: Geo):
+    return [p for p in BAR_POS if tables.bar_table_h(g, p) > 0]
+
+
+def right_layout(g: Geo, tkkt=False):
+    """Vị trí mặt cắt 1-1 và lưới đầu trụ: (xm, y11, ym, hp, ex)."""
+    kk = 1000.0 / pier_scale(g)
+    hp = kk * g.bb / 2                                  # nửa lưới đầu trụ
+    hs = kk * g.b_at(zcut(g)) / 2                       # nửa tiết diện 1-1
+    ex = kk * g.b2 - 2 * hs if g.tp > 1e-6 else 0.0     # đường bao chân cổ lòi ra trái / dưới
+    xm = 285.0 if tkkt else 205.0
+    y11 = 262.0 - hs
+    ym = y11 - hs - ex - 30.0 - hp
+    return xm, y11, ym, hp, ex
+
+
+def mid_box(g: Geo):
+    _, _, ym, hp, _ = right_layout(g)
+    return ym - hp - 24.0, MID_BOT
+
+
+def mid_rh(g: Geo):
+    """Chiều cao dòng để các bảng vừa khoảng giữa tờ 2 (None nếu không vừa với dòng 4 mm)."""
+    lst = bar_list(g)
+    if not lst:
+        return tables.BT_RH
+    top, bot = mid_box(g)
+    n = sum(len(g.klb[p]) for p in lst)
+    fixed = len(lst) * (tables.BT_HH + tables.BT_GAP) - tables.BT_GAP
+    rh = min(tables.BT_RH, (top - bot - fixed) / n)
+    return rh if rh >= 4.0 else None
+
+
+def need_sheet3(g: Geo):
+    if not getattr(g, "kl", None):
+        g.calc_kl()
+    return not model.is_tkkt(g.p) and model.is_detail(g.p) and mid_rh(g) is None
+
+
+def draw3(c: Ctx, g: Geo):
+    """Tờ 3: các bảng kích thước từng thanh xếp theo cột."""
+    ci, yy = 0, TOP3
+    for pos in bar_list(g):
+        h = tables.bar_table_h(g, pos) - tables.BT_GAP
+        while ci < len(COLS3) - 1 and yy < TOP3 and yy - h < _bot3(ci):
+            ci, yy = ci + 1, TOP3
+        x = COLS3[ci]
+        yy = tables.bar_table(c, g, x, yy, pos, ybot=_bot3(ci)) - tables.BT_GAP
+
+
+def _bot3(ci):
+    return BOT3_KT if COLS3[ci] + sum(tables.BT_CW) > 262.0 else BOT3

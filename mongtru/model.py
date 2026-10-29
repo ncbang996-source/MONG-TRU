@@ -407,4 +407,8 @@ def is_detail(p) -> bool:
 
 
 def n_sheets(p) -> int:
-    return 2 if is_detail(p) else 1
+    if not is_detail(p):
+        return 1
+    from . import sheet2
+    from .geom import Geo
+    return 3 if sheet2.need_sheet3(Geo(p)) else 2

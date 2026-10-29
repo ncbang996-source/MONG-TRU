@@ -204,7 +204,7 @@ def bar_table_h(g, pos, rh=BT_RH):
     return BT_HH + len(rows) * rh + BT_GAP
 
 
-def bar_table(c: Ctx, g, tx, ty, pos, ybot=None):
+def bar_table(c: Ctx, g, tx, ty, pos, ybot=None, rh=BT_RH):
     """Bảng kích thước từng thanh (thép lớp trên uốn theo mặt vát, thanh chống; cổ móng vát: thép chủ cổ, đai,
     đai bát giác, đai phụ). Trả về đáy bảng."""
     rows = g.klb.get(pos)
@@ -214,7 +214,6 @@ def bar_table(c: Ctx, g, tx, ty, pos, ybot=None):
     wtot = sum(cw)
     n = len(rows)
     hh = BT_HH
-    rh = BT_RH
     if ybot is not None:                     # co chiều cao dòng để bảng không tràn
         rh = max(3.6, min(rh, (ty - hh - ybot) / n))
     with c.table(f"bar{pos}", f"Bảng kích thước thanh số {g.sq(pos)}"):
