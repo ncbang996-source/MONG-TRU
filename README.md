@@ -55,6 +55,19 @@ App Windows chạy offline, vẽ nhanh bản vẽ **móng trụ rời 4 trụ** 
   - Bảng tổng kê và Excel khối lượng cộng thêm dự phòng thép (ô H29), không ghi chú trên bản vẽ. Bảng thống kê cốt thép không cộng dự phòng.
   - Excel: mục phân loại theo đường kính liệt kê đủ các Ø trong bảng tra. Đổi Ø ở THONG SO sang đường kính không có cột ở sheet TONG KE thì TONG KE hiện "Có đường kính mới - xuất lại file".
 
+## Móng 2 loại (4 trụ có 2 loại móng khác nhau)
+Mở file Excel có 2 khối "Móng:" ở sheet `TONG HOP` (mẫu `samples/N112-52(60) - 3T-1T.xls`) thì app tự chuyển sang chế độ 2 loại: 3 trụ giống nhau + 1 trụ khác, hoặc 2 + 2 song song. Mã nguồn tách riêng ở `mongtru/lech/`, dùng lại phần tính / vẽ 1 trụ của bản 4 trụ giống nhau (bản này đã khóa định dạng, xem [docs/KHOA_DINH_DANG.md](docs/KHOA_DINH_DANG.md)).
+- **Ô đọc:** khối loại 1 như hình mẫu trong Excel (B8 tên móng, B10..B17 kích thước, C21/D21 bu lông, C23/C24 lớp bảo vệ, H22..I29 thép, K29 số lớp lưới, B26.. vị trí trụ, C27 cao độ thiết kế); khối loại 2 cùng cột, lùi xuống 22 dòng (B30 ...). Dùng chung: B4, C4, C5, C6, J4..J7, K7, hệ số mở mái C19, mở rộng đáy hố C20, dự phòng thép H52. Ô của loại 2 trống / lỗi thì lấy theo loại 1 (có cảnh báo).
+- **Vị trí trụ:** 1 trái trên, 2 phải trên, 3 trái dưới, 4 phải dưới (như hình trong Excel). Bt là khoảng cách tim đỉnh trụ; tim bản đế mỗi loại lệch theo b2 − b1 của loại đó.
+- **Cao độ:** cao độ thiết kế = mặt đất tại trụ; đỉnh cổ móng = cao độ thiết kế + d; đáy bản đế = cao độ thiết kế − Hm.
+- **Giao diện:** thêm ô "Loại móng đang sửa" (các ô kích thước, thép, bu lông hiện số liệu của loại đang chọn), "Vị trí trụ" (loại kia tự nhận các vị trí còn lại), "Cao độ thiết kế".
+- **Bản vẽ:**
+  - Tờ 1: mặt cắt A-A qua 2 trụ khác loại (cùng hàng; nếu 2 hàng đều cùng loại thì cắt theo cột), mỗi trụ theo cao độ riêng: mặt đất 2 mức nối bằng mái 1:1 qua trục tim móng, kích thước và cao độ trụ trái ở bên trái, trụ phải ở bên phải. Mặt bằng ghi tên loại trong từng bản đế, kích thước cổ móng trên 1 trụ mỗi loại. Bảng tổng kê cho cả vị trí móng (bu lông gộp theo đường kính).
+  - TKBVTC / TKKT: mỗi loại 1 tờ cốt thép (vẽ như tờ 2 bản 4 trụ giống nhau, số lượng thép theo số trụ của loại). Bảng kích thước từng thanh không đủ chỗ thì thêm tờ ngay sau tờ thép của loại đó (không đưa bảng thống kê thép sang tờ 1).
+- **Khối lượng:** bê tông, lót, ván khuôn, thép = cộng 2 loại. Đào: mỗi trụ hố từ đáy lót lên mặt đất tại trụ đó; miệng hố 2 trụ cạnh nhau chạm nhau thì đào chung 1 hố, đáy bậc theo độ sâu từng trụ (tính theo lát cắt: tại mỗi cao độ, hố chung là hình chữ nhật bao các hố riêng có ở cao độ đó). Đắp = đào − lót − phần bê tông dưới mặt đất. Đền bù: Bt + max(b2 − b1 + Bm) + 1.
+- **Excel khối lượng:** sheet THONG SO 1 / KHOI LUONG 1 (loại 1), THONG SO 2 / KHOI LUONG 2 (loại 2) như file của bản 4 trụ giống nhau; sheet DAT (đào / đắp cả vị trí: công thức khi đào riêng, giá trị do chương trình tính khi đào chung đáy bậc - sửa thông số thì xuất lại); sheet TONG KE cho cả vị trí móng.
+- **3D:** 4 trụ đúng loại và cao độ.
+
 ## Tải file .exe
 Vào tab **Actions** của repo, mở lần build mới nhất và tải mục **VE_MONGTRU-exe** ở phần *Artifacts*.
 
@@ -68,5 +81,6 @@ python app.py
 - `python tools/render_preview.py [file.xls] [KEY=VAL ...] --out thư_mục`: render ảnh xem trước.
 - `python tests/smoke.py`: kiểm tra nhanh (đọc Excel mẫu, so khối lượng, dựng PDF/DXF/Excel).
 - `python tools/check_kl_excel.py`: đối chiếu công thức Excel khối lượng với chương trình qua LibreOffice (phải ra 0 lỗi).
+- `python tests/smoke_lech.py`, `python tools/check_kl_lech.py`: kiểm tra móng 2 loại (Excel khối lượng phải ra 0 lỗi).
 - `python tests/regression.py`: khóa định dạng bản 1.0.0 (phải ra 0 chỗ khác mẫu) - xem [docs/KHOA_DINH_DANG.md](docs/KHOA_DINH_DANG.md).
 - Kiến trúc chung: xem [docs/HUONG_DAN_PHAT_TRIEN.md](docs/HUONG_DAN_PHAT_TRIEN.md) (viết cho app móng bản có dầm; package ở app này tên `mongtru`).

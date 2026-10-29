@@ -66,7 +66,6 @@ def _ztxt(z):
 def draw_section(c: Ctx, L: Lay):
     mp, k, cx = L.mp, L.k, L.cx
     ts = mp["TYPES"]
-    side = {L.iL: -1, L.iR: 1}
     sides = [(-1, L.iL), (1, L.iR)]
     info = {}
     for s, i in sides:
@@ -309,7 +308,7 @@ def draw_plan(c: Ctx, L: Lay):
     sym(c, cx, ys0)
     sym_r(c, v.x(-El) - 3.0, cy, 90.0)
     # ký hiệu mặt cắt A-A
-    a, b = pc[L.a], pc[L.b]
+    a = pc[L.a]
     if L.ax == "x":
         ya = a[4]
         marker(c, v.x(-El) - 22.0, cy + k * ya, 1.0, "A")

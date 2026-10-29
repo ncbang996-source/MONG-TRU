@@ -84,7 +84,11 @@ class View3D(ttk.Frame):
     def scene(self):
         q = self.v_q.get()
         if q not in self.scenes:
-            self.scenes[q] = view3d.Scene(Geo(self.p), quarter=q)
+            if "TYPES" in self.p:                  # móng 2 loại (mongtru.lech)
+                from .lech.view3d import MixedScene
+                self.scenes[q] = MixedScene(self.p, quarter=q)
+            else:
+                self.scenes[q] = view3d.Scene(Geo(self.p), quarter=q)
         return self.scenes[q]
 
     # ---------------------------------------------------------------- vẽ

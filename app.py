@@ -14,6 +14,10 @@ import traceback
 from tkinter import filedialog, messagebox, ttk
 
 from mongtru import _meta, cad, export, frame, kl_excel, model
+from mongtru.lech import export as lexport
+from mongtru.lech import kl_excel as lkl
+from mongtru.lech import model as lmodel
+from mongtru.lech import ui as lui
 from mongtru.ui3d import View3D
 
 APP_NAME = "VE_MONGTRU"
@@ -124,6 +128,11 @@ class App(tk.Tk):
         self.p = model.default_params()
         self.p.update({k: v for k, v in self.st.get("params", {}).items() if k in self.p})
         self.xls = self.st.get("xls", "")
+        # móng 2 loại (mongtru.lech): mp = thông số cả vị trí móng, ti = loại đang sửa; None = 4 trụ giống nhau
+        self.mp = self.st.get("mixed") if lui.valid_saved(self.st.get("mixed")) else None
+        self.ti = 0
+        if self.mp:
+            self.p = lui.fill_params(self.mp, 0)
         self.frame_path = self.st.get("frame", default_frame())
         if self.frame_path and not os.path.isfile(self.frame_path):
             self.frame_path = default_frame()
@@ -415,8 +424,28 @@ class App(tk.Tk):
         row("Bê tông lót", "BTL", 8)
         row("Bu lông neo", "BLN", 16)
         head("2. Kích thước")
+        # chế độ móng 2 loại: chọn loại đang sửa, vị trí trụ, cao độ thiết kế (ẩn ở chế độ 4 trụ giống nhau)
+        self._mixw = []
+        lb = ttk.Label(body, text="Loại móng đang sửa")
+        lb.grid(row=r, column=0, sticky="w", padx=(10, 4), pady=1)
+        self.v_ti = tk.StringVar()
+        self.cb_ti = ttk.Combobox(body, textvariable=self.v_ti, width=22, state="readonly")
+        self.cb_ti.grid(row=r, column=1, columnspan=3, sticky="w", pady=1)
+        self.cb_ti.bind("<<ComboboxSelected>>", lambda e: self._switch_type(self.cb_ti.current()))
+        self._mixw += [lb, self.cb_ti]
+        r += 1
+        for k, lbl in (("POS", "Vị trí trụ (1..4, vd 2, 3, 4)"), ("CD", "Cao độ thiết kế (m)")):
+            lb = ttk.Label(body, text=lbl)
+            lb.grid(row=r, column=0, sticky="w", padx=(10, 4), pady=1)
+            e = ttk.Entry(body, textvariable=self._var(k), width=12)
+            e.grid(row=r, column=1, columnspan=3, sticky="w", pady=1)
+            self._mixw += [lb, e]
+            r += 1
+        self._npw = []
         for k, lbl in DIM_FIELDS:
-            row(lbl, k, 8)
+            e = row(lbl, k, 8)
+            if k == "NPIER":                 # chế độ 2 loại: số trụ theo vị trí trụ
+                self._npw = [e, body.grid_slaves(row=r - 1, column=0)[0]]
             if k == "MPIT":              # trình bày hố đào + cách đào (tính khối lượng) ngay dưới mở rộng đáy hố đào
                 cb = row("Trình bày hố đào (hình vẽ)", "PIT_DRAW", 20, values=model.PIT_DRAW_NAMES)
                 cb.configure(state="readonly")
@@ -451,8 +480,17 @@ class App(tk.Tk):
     # ------------------------------------------------------------ dữ liệu
     def _fill(self):
         self._filling = True
-        p = self.p
+        p = lui.fill_params(self.mp, self.ti) if self.mp else self.p
+        for w in self._mixw:
+            w.grid() if self.mp else w.grid_remove()
+        for w in self._npw:
+            w.grid_remove() if self.mp else w.grid()
+        if self.mp:
+            self.cb_ti.config(values=lui.type_labels(self.mp))
+            self.cb_ti.current(self.ti)
         for k, v in self.vars.items():
+            if k in lui.MIX_KEYS and not self.mp:
+                continue
             if k == "HT":
                 v.set(["Đỡ", "Néo góc", "Néo dừng"][int(p["HT"])])
             elif k == "PIT_DRAW":
@@ -471,8 +509,28 @@ class App(tk.Tk):
         self._update_info()
 
     def _collect(self):
+        """Thông số từ ô nhập; chế độ 2 loại trả về mp (thông số cả vị trí móng)."""
+        p = self._collect_p()
+        if self.mp:
+            return lui.merge(self.mp, self.ti, p, self.vars["POS"].get(), self.vars["CD"].get())
+        return p
+
+    def _switch_type(self, i):
+        """Đổi loại móng đang sửa: lưu số liệu loại hiện tại rồi hiện loại i."""
+        try:
+            self.mp = self._collect()
+        except ValueError:
+            self.cb_ti.current(self.ti)
+            self._set_err("[!] Có ô nhập không phải số.")
+            return
+        self.ti = max(0, i)
+        self._fill()
+
+    def _collect_p(self):
         p = dict(self.p)
         for k, v in self.vars.items():
+            if k in lui.MIX_KEYS:
+                continue
             s = v.get().strip()
             if k == "HT":
                 p["HT"] = {"đỡ": 0, "néo góc": 1, "néo": 1, "néo dừng": 2}.get(s.lower(), model.ht_from_string(s))
@@ -522,6 +580,12 @@ class App(tk.Tk):
         except ValueError:
             self._set_err("[!] Có ô nhập không phải số.")
             return None
+        if self.mp:
+            err = lmodel.validate(p)
+            warn = [] if err else lmodel.warnings(p)
+            self._set_err(f"[!] {err}" if err else "   ".join(f"[Cảnh báo] {w}" for w in warn))
+            self.l_pit.config(text="" if err else lui.pit_text(p))
+            return None if err else p
         err = model.validate(p)
         warn = [] if err else model.warnings(p)
         self._set_err(f"[!] {err}" if err else "   ".join(f"[Cảnh báo] {w}" for w in warn))
@@ -538,7 +602,7 @@ class App(tk.Tk):
     def auto_scale(self):
         try:
             p = self._collect()
-            self.vars["SCALE"].set(str(model.auto_scale(p)))
+            self.vars["SCALE"].set(str((lmodel if self.mp else model).auto_scale(p)))
         except ValueError:
             pass
 
@@ -554,14 +618,22 @@ class App(tk.Tk):
         if not path:
             return self.pick_excel()
         try:
-            # nền là thông số mặc định: ô trống trong file mới không giữ giá trị của file trước;
-            # chỉ giữ các thông số không có trong Excel (mã số bản vẽ, tuỳ chọn trình bày)
-            p, warn = model.read_excel(path, "TONG HOP", model.fresh_params(self.p))
+            if lmodel.detect(path):                   # file móng 2 loại (2 khối "Móng:" ở sheet TONG HOP)
+                mp, warn = lmodel.read_excel(path)
+                if lmodel.validate(mp) is None:
+                    mp["SCALE"] = lmodel.auto_scale(mp)
+                p = lui.fill_params(mp, 0)
+            else:
+                mp = None
+                # nền là thông số mặc định: ô trống trong file mới không giữ giá trị của file trước;
+                # chỉ giữ các thông số không có trong Excel (mã số bản vẽ, tuỳ chọn trình bày)
+                p, warn = model.read_excel(path, "TONG HOP", model.fresh_params(self.p))
+                if model.validate(p) is None:
+                    p["SCALE"] = model.auto_scale(p)          # mở file mới: luôn tự chọn tỷ lệ
         except Exception as ex:
             messagebox.showerror(APP_NAME, f"Không đọc được file Excel:\n{ex}")
             return
-        if model.validate(p) is None:
-            p["SCALE"] = model.auto_scale(p)          # mở file mới: luôn tự chọn tỷ lệ
+        self.mp, self.ti = mp, 0
         self.p, self.xls = p, path
         self._bump()
         self.offsets = load_layout(path)
@@ -569,7 +641,7 @@ class App(tk.Tk):
         self._undo.clear()
         self._redo.clear()
         self._fill()
-        msg = f"Đã đọc {os.path.basename(path)}."
+        msg = f"Đã đọc {os.path.basename(path)}." + ("  Móng 2 loại." if mp else "")
         if warn:
             msg += "  Cảnh báo: " + " ".join(warn)
         self.l_msg.config(text=msg)
@@ -599,7 +671,9 @@ class App(tk.Tk):
     def _render(self, p, done, only=None):
         def work():
             try:
-                res = export.build(p, self.frame_path or None, self.fields, dict(self.offsets))
+                build = lexport.build if "TYPES" in p else export.build
+                res = build(p, self.frame_path or None, self.fields, dict(self.offsets))
+                res.params = p
                 data = export.pdf_bytes(res, only)
                 imgs = pdf_images(data)
                 if only is not None:          # chỉ dựng lại tờ đang xem, các tờ khác giữ ảnh cũ
@@ -646,7 +720,8 @@ class App(tk.Tk):
             self.cb_page.config(values=vals)
             self._show_page(min(self.page_i, len(imgs) - 1))
             self.l_state.config(text=f"{len(imgs)} tờ A3 - tỷ lệ 1/{res.geo.den}")
-        if only is not None and len(self.pages) != model.n_sheets(p):
+        ns = lexport.n_sheets(p) if "TYPES" in p else model.n_sheets(p)
+        if only is not None and len(self.pages) != ns:
             only = None
         self._render(p, done, only)
 
@@ -683,8 +758,9 @@ class App(tk.Tk):
     def _default_name(self, ext):
         if self.xls:
             return os.path.splitext(os.path.basename(self.xls))[0] + ext
-        p = self.p
-        nm = f"MONG_{model.type_name(p)}_{p.get('COT', '')}_{p.get('GD', '')}".replace(" ", "_").replace("/", "-")
+        p = self.mp or self.p
+        tn = lmodel.type_name(p) if self.mp else model.type_name(p)
+        nm = f"MONG_{tn}_{p.get('COT', '')}_{p.get('GD', '')}".replace(" ", "_").replace("/", "-")
         return nm + ext
 
     def export_pdf(self):
@@ -727,7 +803,11 @@ class App(tk.Tk):
                 messagebox.showerror(APP_NAME, "Không được ghi đè lên file Excel đầu vào.")
                 return
             try:
-                kl_excel.export(self.res.geo.p, self.res.geo, f)
+                mp = getattr(self.res, "params", None)
+                if mp is not None and "TYPES" in mp:
+                    lkl.export(mp, lexport.geos(mp), f)
+                else:
+                    kl_excel.export(self.res.geo.p, self.res.geo, f)
                 self.l_msg.config(text=f"Đã xuất Excel khối lượng: {f}")
             except Exception as ex:
                 messagebox.showerror(APP_NAME, f"Không ghi được file:\n{ex}")
@@ -1102,9 +1182,13 @@ class App(tk.Tk):
         try:
             p = self._collect()
         except ValueError:
-            p = self.p
+            p = self.mp or self.p
+        mp = None
+        if self.mp:
+            mp, p = p, lui.fill_params(p, 0)
+            p = {k: v for k, v in p.items() if k in model.default_params()}
         save_settings({"xls": self.xls, "frame": self.frame_path, "fields": self.fields,
-                       "auto": self.v_auto.get(), "params": p})
+                       "auto": self.v_auto.get(), "params": p, "mixed": mp})
         self.destroy()
 
 
