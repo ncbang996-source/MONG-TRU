@@ -75,12 +75,15 @@ def pad_aa(v: V, g: Geo, xc, lot=True, so=1):
                 "AR-CONC", 0.375 * v.k / 10.0)
 
 
-def bolts_aa(c: Ctx, g: Geo, xc_paper):
-    """Bu lông neo nhìn ngang trên đỉnh cổ móng, trả về cao độ giấy đỉnh bu lông."""
-    gp = g.k * model.bolt_gap(g.p, g.bb) / 2
-    top = g.ytop
+def bolts_aa(c: Ctx, g: Geo, xc_paper, k=None, ytop=None):
+    """Bu lông neo nhìn ngang trên đỉnh cổ móng (tỷ lệ k, đỉnh cổ móng tại ytop giấy - mặc định của tờ 1),
+    trả về cao độ giấy đỉnh bu lông."""
+    k = g.k if k is None else k
+    ytop = g.ytop if ytop is None else ytop
+    gp = k * model.bolt_gap(g.p, g.bb) / 2
+    top = ytop
     for t in (-1, 1):
-        top = bolt_side(c, g.k, xc_paper + t * gp, g.ytop, model.bolt_dia(g.p) / 1000.0, model.bolt_h(g.p))
+        top = bolt_side(c, k, xc_paper + t * gp, ytop, model.bolt_dia(g.p) / 1000.0, model.bolt_h(g.p))
     return top
 
 

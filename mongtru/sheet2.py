@@ -135,7 +135,7 @@ def pier_section(c: Ctx, g: Geo, co: Callouts, cx, ytop):
     for z in g.hoop_zs()[nm:]:
         l_, r_ = colx(z)
         v.ln("DAI", l_ + cov, z, r_ - cov, z)
-    bolts_aa(c, g, cx + k * tc)
+    bolts_aa(c, g, cx + k * tc, k, v.y(g.H))           # theo tỷ lệ hình bố trí thép trụ
     # ---- chú thích
     # 1, 2: thép 2 phương giống nhau -> 1 tag chỉ cả chấm tròn và thanh nằm ngang, đặt ở chỗ trống
     # (giữa đầu neo thép chủ / mép gờ và mép bản đế, tránh thanh chống)
