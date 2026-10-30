@@ -214,8 +214,26 @@ class Geo:
             for j, y in enumerate(xs):
                 r = max(abs(x), abs(y))
                 f = (w - cl if r < w else w + cl) / r if r > 1e-9 and abs(r - w) < cl else 1.0
-                out.append((i, j, x * f, y * f))
+                xc, yc = x * f, y * f
+                if self.chair_rot():
+                    xc = self._chair_snap(xc, yc, w, cl)
+                out.append((i, j, xc, yc))
         return out
+
+    def _chair_snap(self, x, y, w, cl):
+        """Thanh chống xoay (chân theo Y): thân đặt sát cạnh thanh thép lớp lưới theo Y (thép chấm trên mặt cắt X)
+        gần vị trí lưới nhất, phía tim móng; đối xứng qua tim (tính theo |x| rồi lấy dấu). Chiều cao thân (L1) tính
+        tại vị trí này. Tránh hàng thép chủ cổ móng như vị trí lưới."""
+        xb, xt = self.xs_bot(), self.xs_top()
+        same = sorted({round(abs(d), 6) for d in xb if any(abs(d - t) < 0.02 for t in xt)}) or \
+            sorted({round(abs(d), 6) for d in xb})
+        off = max(self.db, self.dt) / 2 + self.g("RB_CH_D") / 2000.0
+        sx = -1.0 if x < 0 else 1.0
+        for ad in sorted(same, key=lambda d: (abs(d - abs(x)), d)):
+            xa = ad - off if ad > off else ad + off
+            if abs(max(xa, abs(y)) - w) >= cl:
+                return sx * xa
+        return x
 
     def chairs(self):
         return [(x, y) for _, _, x, y in self.chair_grid()]

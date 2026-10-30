@@ -111,16 +111,10 @@ def pier_section(c: Ctx, g: Geo, co: Callouts, cx, ytop):
         z1 = zc0 + g.chair_body(x, ych[x])
         sg = 1.0 if x < 0 else -1.0
         if g.chair_rot():
-            # chân theo Y (vuông góc hình): thấy 1 vạch đứng, kẹp sát thép chấm lớp dưới và lớp trên
-            # (chiều dài thanh chống tính theo bố trí lưới, không đổi)
-            same = [d for d in xs if any(abs(d - t) < 0.02 for t in xt)] or xs
-            xd = min(same, key=lambda d: abs(d - x))
-            sd = 1.0 if x >= xd else -1.0
-            xx = xd + sd * (max(rdb, rdt) + 0.15) / v.k
-            ya = zy - rdb / v.k
-            yb = zt(xd, d1) + rdt / v.k
-            v.ln("DAI", xx, ya, xx, yb)
-            chx[x] = (xx, 0.5 * (ya + yb))
+            # chân theo Y (vuông góc hình): thấy 1 vạch đứng sát thép chấm - vị trí và chiều cao thân (L1) theo
+            # Geo.chair_grid (khớp bảng thống kê)
+            v.ln("DAI", x, zc0, x, z1)
+            chx[x] = (x, 0.5 * (zc0 + z1))
         else:
             v.pl("DAI", False, [(x + sg * CH_LEG, zc0), (x, zc0), (x, z1), (x + sg * CH_LEG, z1)])
             chx[x] = (x, zc0 + 0.5 * g.chair_body(x, ych[x]))

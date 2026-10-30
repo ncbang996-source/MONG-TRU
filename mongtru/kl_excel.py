@@ -231,12 +231,19 @@ def export(p: dict, g: Geo, path: str):
                "1 + ROUNDUP(lc/@)", "thanh")
     X = f"ABS({lch}*((ROW(OFFSET($A$1,0,0,{nch},1))-1)/({nch}-1)-0.5))"
     Y = f"ABS({lch}*((COLUMN(OFFSET($A$1,0,0,1,{nch}))-1)/({nch}-1)-0.5))"
+    xnote = ""
+    if g.chair_rot():
+        # thanh chống xoay: thân đặt sát thép lưới phương Y (Geo.chair_grid) - |x| từng thanh theo bố trí
+        cg = {(i, j): abs(x) for i, j, x, _ in g.chair_grid()}
+        ni_ = 1 + max(i for i, _ in cg)
+        X = "{" + ";".join(",".join(f"{cg[i, j]:.6f}" for j in range(ni_)) for i in range(ni_)) + "}"
+        xnote = "; thanh chống xoay: |x| từng thanh = vị trí sát cạnh thép lưới phương Y gần lưới @ nhất (phía tim)"
     R = f"(({X}>={Y})*{X}+({X}<{Y})*{Y})"
     sch = line("", "Tổng chiều cao thân thanh chống (1 trụ)", "Sch",
                f"=SUMPRODUCT(TS_hb-(TS_hb-TS_hv)*({R}>{pm})*({R}-{pm})/(TS_Bm/2-{pm}))"
                f"-{nch}^2*(TS_cv+TS_cvb+(TS_db+TS_dtr)/1000)",
                "Σ thân = cao bản đế tại vị trí thanh − 2 lớp bảo vệ (cv + cvb) − 2Ø (Ø lớp dưới + Ø lớp trên); "
-               "cao bản đế theo max(|x|,|y|) của thanh", "m")
+               "cao bản đế theo max(|x|,|y|) của thanh" + xnote, "m")
     hh_ = line("", "Chiều cao toàn trụ", "H", "=TS_Hm+TS_d", "Hm + d", "m")
     z0 = line("", "Cao độ đai dưới lớp lưới đầu trụ thấp nhất", "z0",
               f"={hh_}-TS_cv-(TS_nl-1)*TS_sl/1000-2*TS_dl/1000", "H − cv − (số lớp − 1)·@lưới − 2Ø lưới", "m")
