@@ -234,10 +234,11 @@ def export(p: dict, g: Geo, path: str):
     xnote = ""
     if g.chair_rot():
         # thanh chống xoay: thân đặt sát thép lưới phương Y (Geo.chair_grid) - |x| từng thanh theo bố trí
-        cg = {(i, j): abs(x) for i, j, x, _ in g.chair_grid()}
-        ni_ = 1 + max(i for i, _ in cg)
-        X = "{" + ";".join(",".join(f"{cg[i, j]:.6f}" for j in range(ni_)) for i in range(ni_)) + "}"
-        xnote = "; thanh chống xoay: |x| từng thanh = vị trí sát cạnh thép lưới phương Y gần lưới @ nhất (phía tim)"
+        a_ = {i: abs(x) for i, _, x, _ in g.chair_grid()}
+        X = "{" + ";".join(f"{a_[i]:.6f}" for i in sorted(a_)) + "}"
+        Y = "{" + ",".join(f"{a_[i]:.6f}" for i in sorted(a_)) + "}"
+        xnote = ("; thanh chống xoay: |x|, |y| từng hàng = vị trí sát cạnh thép lưới gần lưới @ nhất (dời ít nhất), "
+                 "như nhau 2 phương")
     R = f"(({X}>={Y})*{X}+({X}<{Y})*{Y})"
     sch = line("", "Tổng chiều cao thân thanh chống (1 trụ)", "Sch",
                f"=SUMPRODUCT(TS_hb-(TS_hb-TS_hv)*({R}>{pm})*({R}-{pm})/(TS_Bm/2-{pm}))"

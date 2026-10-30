@@ -34,8 +34,10 @@ nhánh này; lấy lại đúng mã nguồn lúc đó: `git checkout ban-on-dinh
 - Tag đai 5 và 6/7 tách riêng, dùng chung đường đứng; nút chụm tag 1, 2 ở điểm giữa 2 điểm leader; dấu xẹt xoay
   (đai bát giác) đi theo điểm leader khi kéo.
 - Bảng bố trí bu lông neo cập nhật h: M36-250 = 160, M42-250 = 180 (mm).
-- Thanh chống xoay (chân theo Y): vị trí đặt sát cạnh thép lưới theo Y gần vị trí lưới @ nhất, phía tim móng, đối xứng qua tim
-  (`Geo.chair_grid`); chiều cao thân L1 trong bảng thống kê tính đúng tại vị trí này (bảng, hình, 3D cùng vị trí);
-  Excel khối lượng: công thức tổng thân thanh chống dùng mảng |x| từng thanh theo vị trí này.
+- Thanh chống xoay (chân theo Y): giữ lưới @ đều như cũ, mỗi toạ độ (x và y như nhau, đối xứng qua tim) dời ít nhất
+  để sát cạnh thanh thép lưới gần nhất (có ở cả lớp dưới và lớp trên), bỏ thanh lưới quá gần hàng thép chủ cổ móng
+  (`Geo.chair_grid`, `Geo.chair_snap`). Chiều cao thân L1 tính tại đúng vị trí này, chỉ phụ thuộc max(|x|, |y|):
+  số loại L1 trong bảng = số chiều cao thấy trên mặt cắt. Excel khối lượng: công thức tổng thân dùng mảng |x|, |y|
+  theo vị trí này.
 - Tag 5 và tag 6/7 đều đặt giữa khe hở 2 đai, xếp từ dưới lên (không đè tag 2, 4); leader ngang tag 6 di chuyển
   theo tag khi kéo.

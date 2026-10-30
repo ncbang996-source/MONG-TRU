@@ -209,31 +209,32 @@ class Geo:
         xs = offs(max(s, self.span() - 2 * s), s)
         w = self.b2 / 2 - self.inset()                   # hàng thép chủ tại mặt gờ (z = hb), đối xứng qua tim
         cl = self.dc / 2 + self.g("RB_CH_D") / 2000.0 + 0.04
+        if self.chair_rot():
+            # thanh chống xoay: từng toạ độ (x và y như nhau) dời sát thép lưới gần vị trí lưới nhất -> bố trí đối xứng
+            # 2 phương, chiều cao thân chỉ phụ thuộc max(|x|, |y|) như trường hợp không xoay
+            sn = [math.copysign(self.chair_snap(abs(a), w, cl), a) for a in xs]
+            return [(i, j, sn[i], sn[j]) for i in range(len(xs)) for j in range(len(xs))]
         out = []
         for i, x in enumerate(xs):
             for j, y in enumerate(xs):
                 r = max(abs(x), abs(y))
                 f = (w - cl if r < w else w + cl) / r if r > 1e-9 and abs(r - w) < cl else 1.0
-                xc, yc = x * f, y * f
-                if self.chair_rot():
-                    xc = self._chair_snap(xc, yc, w, cl)
-                out.append((i, j, xc, yc))
+                out.append((i, j, x * f, y * f))
         return out
 
-    def _chair_snap(self, x, y, w, cl):
-        """Thanh chống xoay (chân theo Y): thân đặt sát cạnh thanh thép lớp lưới theo Y (thép chấm trên mặt cắt X)
-        gần vị trí lưới nhất, phía tim móng; đối xứng qua tim (tính theo |x| rồi lấy dấu). Chiều cao thân (L1) tính
-        tại vị trí này. Tránh hàng thép chủ cổ móng như vị trí lưới."""
+    def chair_snap(self, a, w, cl):
+        """Thanh chống xoay (chân theo Y): toạ độ a >= 0 của vị trí lưới -> toạ độ thân, đặt sát cạnh thanh thép lưới
+        (có ở cả lớp dưới và lớp trên) gần a nhất, phía vị trí lưới (dời ít nhất); bỏ qua thanh làm thân gần hàng thép chủ cổ móng
+        (|toạ độ − w| < cl) để tránh thép chủ."""
         xb, xt = self.xs_bot(), self.xs_top()
         same = sorted({round(abs(d), 6) for d in xb if any(abs(d - t) < 0.02 for t in xt)}) or \
             sorted({round(abs(d), 6) for d in xb})
         off = max(self.db, self.dt) / 2 + self.g("RB_CH_D") / 2000.0
-        sx = -1.0 if x < 0 else 1.0
-        for ad in sorted(same, key=lambda d: (abs(d - abs(x)), d)):
-            xa = ad - off if ad > off else ad + off
-            if abs(max(xa, abs(y)) - w) >= cl:
-                return sx * xa
-        return x
+        for ad in sorted(same, key=lambda d: (abs(d - a), d)):
+            xa = ad + off if a >= ad or ad <= off else ad - off
+            if abs(xa - w) >= cl:
+                return xa
+        return a
 
     def chairs(self):
         return [(x, y) for _, _, x, y in self.chair_grid()]
