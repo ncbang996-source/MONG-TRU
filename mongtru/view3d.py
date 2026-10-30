@@ -154,8 +154,13 @@ class Scene:
             for x, y in g.chairs():
                 z1c = zc0 + g.chair_body(x, y)
                 sg = -1.0 if x > 0 else 1.0
-                self.L("slab", COL["chair"], dch, [(X + x + sg * CH_LEG, Y + y, zc0), (X + x, Y + y, zc0),
-                                                   (X + x, Y + y, z1c), (X + x + sg * CH_LEG, Y + y, z1c)])
+                if g.chair_rot():                      # chân theo Y
+                    sy_ = -1.0 if y > 0 else 1.0
+                    self.L("slab", COL["chair"], dch, [(X + x, Y + y + sy_ * CH_LEG, zc0), (X + x, Y + y, zc0),
+                                                       (X + x, Y + y, z1c), (X + x, Y + y + sy_ * CH_LEG, z1c)])
+                else:
+                    self.L("slab", COL["chair"], dch, [(X + x + sg * CH_LEG, Y + y, zc0), (X + x, Y + y, zc0),
+                                                       (X + x, Y + y, z1c), (X + x + sg * CH_LEG, Y + y, z1c)])
             # thép chủ cổ móng (theo mặt vát), neo chân quay ra ngoài
             c0 = g.col_c(z0)
             for i, j in g.ring():
@@ -197,7 +202,7 @@ class Scene:
             for bx in (-1, 1):
                 for by in (-1, 1):
                     px, py, _ = W(tc + bx * ob, tc + by * ob, 0.0)
-                    self.L("pier", COL["bolt"], db_ * 0.8, [(px, py, H), (px, py, H + 0.25)])
+                    self.L("pier", COL["bolt"], db_ * 0.8, [(px, py, H), (px, py, H + model.bolt_h(p))])
                     hn = 0.9 * db_
                     for zn in (H + 0.06, H + 0.14):
                         self.L("pier", COL["bolt"], 0.012, [(px - hn, py - hn, zn), (px + hn, py - hn, zn),

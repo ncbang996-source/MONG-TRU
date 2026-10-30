@@ -220,6 +220,15 @@ class Geo:
     def chairs(self):
         return [(x, y) for _, _, x, y in self.chair_grid()]
 
+    def chair_rot(self):
+        """Hướng chân thanh chống. Trên mặt cắt theo X (hình bố trí thép trụ) thanh theo X thấy là đường ngang, thanh
+        theo Y là chấm. Thép chấm nằm trong (thanh X nằm ngoài ở cả lớp dưới và lớp trên): thanh chống xoay 90°
+        (chân theo Y) - buộc chung thép chấm, đỡ thép ngang; ngược lại chân theo X, thép chấm nằm giữa móc C.
+        Chiều dài thanh chống như nhau ở 2 trường hợp."""
+        zx, zy = self.z_bot()
+        d0, d1 = self.d_top()
+        return zx < zy and d0 < d1
+
     def chair_body(self, x, y):
         """Chiều cao thân thanh chống = chiều cao bản đế tại vị trí thanh − 2 lớp bê tông bảo vệ (cv + cvb)
         − 2Ø (Ø lớp dưới + Ø lớp trên)."""

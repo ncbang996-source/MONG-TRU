@@ -20,11 +20,11 @@ QUAD = {1: (-1, 1), 2: (1, 1), 3: (-1, -1), 4: (1, -1)}      # vị trí trụ -
 ROW_OFF = 22                                                  # khối loại 2 lùi xuống 22 dòng so với loại 1
 
 COMMON = ("GD", "COT", "TENMONG", "BTM", "BTL", "CODE", "MABV", "HT", "BT", "SLOPE", "MPIT", "DP", "SCALE",
-          "PIT_DRAW", "GX", "GY", "GM", "FX", "FY", "FM")
+          "PIT_DRAW", "GX", "GY", "GM", "FX", "FY", "FM", "BLN")   # bu lông neo: chung 2 loại
 # hạ cao độ mặt đất (2 trụ khác cao độ thiết kế): mép trên chỗ hạ tại tim móng + (GX, GY) (m), mái 1:GM;
 # bậc đáy hố đào chung (2 trụ khác cao độ đáy hố): mép trên bậc tại tim móng + (FX, FY), mái 1:FM
 STEP_DEF = {"GX": 0.0, "GY": 0.0, "GM": 1.0, "FX": 0.0, "FY": 0.0, "FM": 0.5}
-TYPE_KEYS = ("B", "H1", "H2", "B1", "B2", "HB", "HV", "BLN", "COVER_B", "COVER",
+TYPE_KEYS = ("B", "H1", "H2", "B1", "B2", "HB", "HV", "COVER_B", "COVER",
              "RB_BOT_D", "RB_BOT_S", "RB_TOP_D", "RB_TOP_S", "RB_CH_D", "RB_CH_S",
              "RC_D", "RC_N", "RT_D", "RT_S", "RP_D", "RP_S", "RL_D", "RL_S", "RL_N",
              "TL_PIER", "TL_SLAB", "TL_11", "TL_MESH")
@@ -129,10 +129,10 @@ def read_excel(path: str, sheet: str = "TONG HOP") -> tuple[dict, list[str]]:
                 else:
                     fb(k, a)
             bln = "".join(str(val(_sh(a, i)) or "").strip() for a in T_BLN)
-            if bln:
-                t["BLN"] = bln
-            elif ref is not None:
-                t["BLN"] = ref["BLN"]
+            if i == 0 and bln:                     # bu lông neo chung 2 loại: lấy theo loại 1
+                mp["BLN"] = bln
+            elif i == 1 and bln and bln.upper() != str(mp["BLN"]).upper():
+                warn.append(f"Bu lông neo loại 2 ({bln}) khác loại 1: dùng chung {mp['BLN']}.")
             for k, a0 in T_REBAR:
                 a = _sh(a0, i)
                 v = val(a)

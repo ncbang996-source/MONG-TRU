@@ -178,15 +178,17 @@ def bolts_plan(c: Ctx, px, py, ph):
 BOLT_GAP = 0.05    # khe hở thực tế giữa vòng đệm / đai ốc và mặt trên cổ móng (m)
 
 
-def bolt_side(c: Ctx, k, xb, ytop, d=0.036):
+def bolt_side(c: Ctx, k, xb, ytop, d=0.036, h=None):
     """Bu lông neo nhìn ngang, vẽ theo kích thước thật (đường kính d, m) ở tỷ lệ k (mm giấy / m):
-    thân d, vòng đệm rộng 3d dày 0.35d, 2 đai ốc rộng 2.2d cao 1.25d, cách mặt cổ móng BOLT_GAP."""
+    thân d nhô cao h (m) khỏi mặt cổ móng, vòng đệm rộng 3d dày 0.35d, 2 đai ốc rộng 2.2d cao 1.25d,
+    cách mặt cổ móng BOLT_GAP."""
     gp = k * BOLT_GAP
     u = k * d
-    c.rect("CHU", xb - 0.5 * u, ytop, xb + 0.5 * u, ytop + gp + 4.7 * u)
+    top = ytop + max(gp + 4.7 * u, k * h if h else 0.0)
+    c.rect("CHU", xb - 0.5 * u, ytop, xb + 0.5 * u, top)
     for x0, y0, x1, y1 in ((-1.5, 0, 1.5, 0.35), (-1.1, 0.35, 1.1, 1.6), (-1.1, 2.0, 1.1, 3.25)):
         c.rect("CHU", xb + x0 * u, ytop + gp + y0 * u, xb + x1 * u, ytop + gp + y1 * u)
-    return ytop + gp + 4.7 * u
+    return top
 
 
 def note_at(c: Ctx, x, y, lines):
@@ -329,8 +331,10 @@ class Callouts:
                     c.ln("CHU", xt, jy, tp[0], tp[1], fixed2=True)
             else:
                 c.ln("CHU", jx, jy, tp[0], tp[1], fixed2=True)
-            if tick:
+            if tick is True:
                 tick45(c, tp[0], tp[1], fixed=True)
+            elif tick not in (False, None):            # tick = góc (độ): dấu xẹt xoay, đi theo điểm leader
+                tick_at(c, tp[0], tp[1], float(tick), fixed=True)
         c.txj("CHU", tx, by + 0.8, 2.0, txt1, 2 if side > 0 else 0)
         if txt2:
             c.txj("CHU", tx, by - 2.8, 2.0, txt2, 2 if side > 0 else 0)

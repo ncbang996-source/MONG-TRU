@@ -436,6 +436,7 @@ class App(tk.Tk):
             tk.Label(h, text=t.upper(), background=col, foreground="#FFFFFF",
                      font=(self._f[0], self._f[1], "bold"), padx=8, pady=3).pack(side="left")
             r += 1
+            return h, col
 
         def row(lbl, key, w=12, values=None):
             nonlocal r
@@ -457,19 +458,17 @@ class App(tk.Tk):
         row("Mã số bản vẽ (khung tên)", "MABV", 26)
         row("Bê tông móng", "BTM", 8)
         row("Bê tông lót", "BTL", 8)
-        row("Bu lông neo", "BLN", 16)
-        head("2. Kích thước")
-        # chế độ móng 2 loại: chọn loại đang sửa, vị trí trụ, cao độ thiết kế (ẩn ở chế độ 4 trụ giống nhau)
+        row("Bu lông neo", "BLN", 16, values=model.BOLT_NAMES)
+        hh, hcol = head("2. Kích thước")
+        # chế độ móng 2 loại: chọn loại móng ngay trên thanh tiêu đề, vị trí trụ, cao độ thiết kế
+        # (ẩn ở chế độ 4 trụ giống nhau)
         self._mixw = []
-        lb = ttk.Label(body, text="Loại móng đang sửa")
-        lb.grid(row=r, column=0, sticky="w", padx=(10, 4), pady=1)
         self.v_ti = tk.StringVar()
-        self.cb_ti = ttk.Combobox(body, textvariable=self.v_ti, width=22, state="readonly")
-        self.cb_ti.grid(row=r, column=1, columnspan=3, sticky="w", pady=1)
+        self.cb_ti = ttk.Combobox(hh, textvariable=self.v_ti, width=22, state="readonly")
         self.cb_ti.bind("<<ComboboxSelected>>", lambda e: self._switch_type(self.cb_ti.current()))
-        self._mixw += [lb, self.cb_ti]
-        r += 1
-        for k, lbl in (("POS", "Vị trí trụ (1..4, vd 2, 3, 4)"), ("CD", "Cao độ thiết kế (m)")):
+        self._tiw = [self.cb_ti, tk.Label(hh, text="Loại móng", background=hcol, foreground="#FFFFFF",
+                                          font=(self._f[0], self._f[1]))]
+        for k, lbl in (("POS", "Vị trí trụ (1-4 vd 2,3,4)"), ("CD", "Cao độ thiết kế (m)")):
             lb = ttk.Label(body, text=lbl)
             lb.grid(row=r, column=0, sticky="w", padx=(10, 4), pady=1)
             e = ttk.Entry(body, textvariable=self._var(k), width=12)
@@ -478,7 +477,7 @@ class App(tk.Tk):
             r += 1
         # hạ cao độ mặt đất / bậc đáy hố đào chung: mép trên tại tim móng + (x, y), hệ số mái (chung 2 loại)
         for kx, ky, km, lbl in (("GX", "GY", "GM", "Hạ cao độ mặt đất: x / y (m), mái 1:"),
-                                ("FX", "FY", "FM", "Bậc đáy hố chung: x / y (m), mái 1:")):
+                                ("FX", "FY", "FM", "Hạ cao độ đáy hố đào: x / y (m), mái 1:")):
             lb = ttk.Label(body, text=lbl)
             lb.grid(row=r, column=0, sticky="w", padx=(10, 4), pady=1)
             self._mixw.append(lb)
@@ -531,6 +530,8 @@ class App(tk.Tk):
         p = lui.fill_params(self.mp, self.ti) if self.mp else self.p
         for w in self._mixw:
             w.grid() if self.mp else w.grid_remove()
+        for w in self._tiw:                        # ô "Loại móng" trên thanh tiêu đề mục 2
+            w.pack(side="right", padx=(0, 6), pady=2) if self.mp else w.pack_forget()
         for w in self._npw:
             w.grid_remove() if self.mp else w.grid()
         if self.mp:

@@ -292,12 +292,32 @@ def bolt_dia(p) -> int:
     return int(m.group(1)) if m else 36
 
 
-def bolt_gap(p, b) -> float:
-    """Khoảng cách giữa 2 bu lông 1 cụm (m): số sau dấu '-' của 'M36-250', không có thì theo cổ móng."""
+# bảng bố trí bu lông neo móng: Ø -> (h: chiều cao bu lông nhô lên từ mặt cổ móng, t: nửa khoảng cách 2 bu lông) mm
+BOLT_TABLE = {36: (200, 125), 42: (200, 125), 48: (200, 125), 56: (200, 125), 64: (220, 200), 72: (250, 200),
+              80: (250, 200), 90: (270, 200)}
+BOLT_NAMES = ["BLN-M36-250", "BLN-M42-250", "BLN-M48-250", "BLN-M56", "BLN-M64", "BLN-M72", "BLN-M80", "BLN-M90"]
+
+
+def _bolt_row(p):
+    """Dòng bảng bu lông theo Ø (Ø không có trong bảng: dòng Ø lớn hơn gần nhất, quá bảng thì dòng cuối)."""
+    d = bolt_dia(p)
+    for k in sorted(BOLT_TABLE):
+        if k >= d:
+            return BOLT_TABLE[k]
+    return BOLT_TABLE[max(BOLT_TABLE)]
+
+
+def bolt_gap(p, b=None) -> float:
+    """Khoảng cách giữa 2 bu lông 1 cụm (m) = 2t: số sau dấu '-' của 'M36-250', không có thì theo bảng bu lông."""
     m = re.search(r"M\s*\d+\s*-\s*(\d+)", str(p.get("BLN", "")))
     if m:
         return int(m.group(1)) / 1000.0
-    return 0.47 * b
+    return 2 * _bolt_row(p)[1] / 1000.0
+
+
+def bolt_h(p) -> float:
+    """Chiều cao bu lông neo nhô lên từ mặt cổ móng (m), theo bảng bu lông."""
+    return _bolt_row(p)[0] / 1000.0
 
 
 def bolt_text(p) -> str:

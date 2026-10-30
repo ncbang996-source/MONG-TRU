@@ -97,6 +97,20 @@ def _cross(us, gz, sz, j0, j1):
     return us[j0] + t * (us[j1] - us[j0]), gz[j0] + t * (gz[j1] - gz[j0])
 
 
+def _above(c, us, gz, L, pts, n=60):
+    """Vẽ đường gấp khúc pts (giấy), chỉ phần nằm trên mặt đất (mặt cắt: us, gz)."""
+    k, cx = L.k, L.cx
+    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+        t = np.linspace(0.0, 1.0, n + 1)
+        xs, ys = x0 + t * (x1 - x0), y0 + t * (y1 - y0)
+        zg = np.interp((xs - cx) / k, us, gz)
+        ok = ys >= L.y(zg) - 0.05
+        for run in _runs(ok):
+            j0, j1 = run[0], run[-1]
+            if j1 > j0:
+                c.ln("HINH THUC", xs[j0], ys[j0], xs[j1], ys[j1])
+
+
 def section_profiles(L, step=0.005):
     """Mẫu theo mặt cắt A-A (toạ độ ngang u của hình): (u, cao độ mặt đất, cao độ mặt hố đào) - lấy theo khoảng cách
     tim trụ thể hiện, mái hố thể hiện 1:SLOPE_DRAW."""
@@ -173,7 +187,7 @@ def draw_section(c: Ctx, L: Lay):
     yb = gR.ytop + 2.5
     with c.item("bln", "Ghi chú bu lông"):
         c.ln("CHU", xb, yb, xb + 6.0, yb, fixed1=True)
-        c.tx("CHU", xb + 7.0, yb - 0.8, 2.0, mp["TYPES"][L.iR]["BLN"])
+        c.tx("CHU", xb + 7.0, yb - 0.8, 2.0, mp["BLN"])
     # ---- ụ đất thừa đắp lại quanh mỗi cổ móng
     for s in (-1, 1):
         d = info[s]
@@ -184,8 +198,8 @@ def draw_section(c: Ctx, L: Lay):
         for sg, xcol in ((-1, cl_), (1, cr_)):
             xp = X(d["xc"] + sg * g.Bh)
             xa = xp - sg * min(3.2, abs(X(xcol) - xp) - 0.5)
-            c.ln("HINH THUC", xp, d["yg"], xa, pa)
-            c.ln("HINH THUC", xa, pa, X(xcol), pa)
+            # mái hạ cao độ cắt qua: bỏ phần nét ụ đất nằm dưới mặt đất
+            _above(c, us, gz, L, [(xp, d["yg"]), (xa, pa), (X(xcol), pa)])
     d = lo
     xl = X(d["xc"] - 0.5 * d["g"].Bh)
     pa = d["yg"] + 3.1
@@ -405,9 +419,39 @@ def _ground_step_plan(c, L, v, E):
                 for j in range(0, n, 2):          # nét đứt 1.5 mm
                     a, b = j / n, min(1.0, (j + 1) / n)
                     v.ln("HINH THUC", x0 + a * (x1 - x0), y0 + a * (y1 - y0), x0 + b * (x1 - x0), y0 + b * (y1 - y0))
+        # ký hiệu mái taluy: vạch vuông góc mép trên, chĩa về phía thấp, dài 0.3 m / ngắn 0.15 m xen kẽ, bước 0.15 m
+        G = lm.ground_fn(dict(mp, BT=L.btd))
+        for sg in top:
+            pts = [clip(p) for p in sg]
+            for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+                ln = ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** 0.5
+                if ln < 1e-6:
+                    continue
+                ux, uy = (x1 - x0) / ln, (y1 - y0) / ln
+                nx, ny = -uy, ux
+                xm, ym = (x0 + x1) / 2, (y0 + y1) / 2
+                e = 0.05
+                if G(np.array([xm + nx * e]), np.array([ym + ny * e]))[0] > \
+                        G(np.array([xm - nx * e]), np.array([ym - ny * e]))[0]:
+                    nx, ny = -nx, -ny                   # pháp tuyến về phía thấp
+                for j in range(1, int(ln / 0.15)):
+                    s0 = j * 0.15
+                    tl = min(w, 0.3 if j % 2 else 0.15)
+                    px, py = x0 + ux * s0, y0 + uy * s0
+                    v.ln("HINH THUC", px, py, px + nx * tl, py + ny * tl)
         seg = [clip(p) for p in toe[0]]                   # ghi chú tại góc / giữa đường chân mái
         lx, ly = seg[1] if len(seg) == 3 else ((seg[0][0] + seg[1][0]) / 2, (seg[0][1] + seg[1][1]) / 2)
         c.tx("CHU", v.x(lx) + 1.0, v.y(ly) + 1.0, 1.8, f"MÁI HẠ CAO ĐỘ 1:{mp.get('GM', 1.0):g}")
+    # kích thước mép trên chỗ hạ cao độ -> tim móng (khi không trùng tim)
+    gx, gy = mp.get("GX", 0.0), mp.get("GY", 0.0)
+    for sg in top:
+        for (x0, y0), (x1, y1) in zip(sg, sg[1:]):
+            if abs(x1 - x0) < 1e-9 and abs(gx) > 1e-6:          # mép trên theo phương đứng (x = GX)
+                yd = y0 + 0.75 * (max(-E, min(E, y1)) - y0) if abs(y1 - y0) < 2 * E - 1e-6 else 0.75 * E
+                v.dimH((0.0, yd), (gx, yd), v.y(yd))
+            if abs(y1 - y0) < 1e-9 and abs(gy) > 1e-6:          # mép trên theo phương ngang (y = GY)
+                xd = x0 + 0.75 * (max(-E, min(E, x1)) - x0) if abs(x1 - x0) < 2 * E - 1e-6 else 0.75 * E
+                v.dimV((xd, 0.0), (xd, gy), v.x(xd))
 
 
 def _dims(c, L, v, pc, El, Er, Et, Eb, ys0, gap):
