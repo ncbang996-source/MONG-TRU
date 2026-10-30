@@ -106,13 +106,24 @@ def pier_section(c: Ctx, g: Geo, co: Callouts, cx, ytop):
     chs = sorted(x for x, _ in row)
     ych = {x: y for x, y in row}
     zc0 = g.covb + g.db
+    chx = {}                                           # vị trí vẽ thân thanh chống (để đặt tag 3)
     for x in chs:
         z1 = zc0 + g.chair_body(x, ych[x])
         sg = 1.0 if x < 0 else -1.0
-        if g.chair_rot():                              # chân theo Y (vuông góc hình): thấy 1 vạch đứng
-            v.ln("DAI", x, zc0, x, z1)
+        if g.chair_rot():
+            # chân theo Y (vuông góc hình): thấy 1 vạch đứng, kẹp sát thép chấm lớp dưới và lớp trên
+            # (chiều dài thanh chống tính theo bố trí lưới, không đổi)
+            same = [d for d in xs if any(abs(d - t) < 0.02 for t in xt)] or xs
+            xd = min(same, key=lambda d: abs(d - x))
+            sd = 1.0 if x >= xd else -1.0
+            xx = xd + sd * (max(rdb, rdt) + 0.15) / v.k
+            ya = zy - rdb / v.k
+            yb = zt(xd, d1) + rdt / v.k
+            v.ln("DAI", xx, ya, xx, yb)
+            chx[x] = (xx, 0.5 * (ya + yb))
         else:
             v.pl("DAI", False, [(x + sg * CH_LEG, zc0), (x, zc0), (x, z1), (x + sg * CH_LEG, z1)])
+            chx[x] = (x, zc0 + 0.5 * g.chair_body(x, ych[x]))
     # cổ móng: thép chủ (thanh mặt vát nghiêng theo mặt vát) neo chân quay ra ngoài, đai, lưới đầu trụ
     m = g.m_bars()
     z0, z1 = g.pier_z0(), g.z_col_top()
@@ -163,8 +174,8 @@ def pier_section(c: Ctx, g: Geo, co: Callouts, cx, ytop):
     co([v.P(xa, zt(xa, d1)), v.P(xb2, zt(xb2, d0))], v.x(0.5 * (xa + xb2)), v.y(g.hb) + 4.0, 1, 2,
        phi(p["RB_TOP_D"], p["RB_TOP_S"]), tick=False)
     # 3: thanh chống (bên trái), tag ngay dưới bản đế
-    x3 = chs[0]
-    co([v.P(x3, zc0 + 0.5 * g.chair_body(x3, ych[x3]))], v.x(x3) - 4.0, v.y(-model.TL) - 11.0, -1, 3, T_CHONG,
+    x3, z3 = chx[chs[0]]
+    co([v.P(x3, z3)], v.x(x3) - 4.0, v.y(-model.TL) - 11.0, -1, 3, T_CHONG,
        phi(p["RB_CH_D"], p["RB_CH_S"]))
     # 4: thép chủ (bên phải cổ)
     xp = v.x(g.b2 / 2) + 6.0
@@ -172,23 +183,29 @@ def pier_section(c: Ctx, g: Geo, co: Callouts, cx, ytop):
     zq = g.hb + 0.5 * (z1 - g.hb)                     # chú thích thép chủ ở giữa cổ, giữa 2 đai
     hi = min(range(len(hz) - 1), key=lambda i: abs(0.5 * (hz[i] + hz[i + 1]) - zq)) if len(hz) > 1 else 0
     zm = 0.5 * (hz[hi] + hz[hi + 1]) if len(hz) > 1 else zq
-    co([v.P(U(0, zm), zm), v.P(U(m - 1, zm), zm)], xp, v.y(zm), 1, 4, f"{ni(p['RC_N'])}%%C{ni(p['RC_D'])}",
-       mode=True)
     # 5: đai @ đai; 6, 7 (đai bát giác, đai phụ, đai xiên) @ đai phụ - 2 tag riêng dùng chung đường đứng
     # qua các đai (dấu xẹt tại mỗi đai)
     from .view import balloon
     nums67 = [q for q in (6, 7, 9) if q in g.seq]
-    d67 = 8.6 if nums67 else 0.0                  # tag 6, 7 ngay dưới tag 5
     xv = v.x(U(0, z1)) - 2.5                      # đường đứng lệch vào trong, không trùng nét thép chủ (mặt đứng)
     if nums67:
-        # tag 5 và tag 6, 7 xếp ngay dưới tag 4, không xuống tới tag 2 / kích thước gờ cổ móng
-        y5 = max(v.y(zm) - 8.0, v.y(g.hb) + 12.0 + d67)
+        # xếp từ dưới lên, mỗi tag nằm giữa khe 2 đai liền nhau: tag 6, 7 ngay trên tag 2 / kích thước gờ cổ móng,
+        # tag 5 trên tag 6, tag 4 trên tag 5 (đủ chỗ chữ: >= 6.6 mm giữa 2 tag)
+        gaps = sorted(0.5 * (v.y(a_) + v.y(b_)) for a_, b_ in zip(hz, hz[1:]) if abs(a_ - b_) > 1e-6)
+        ymin = v.y(g.hb) + 12.0
+        up = lambda y0: min([yy for yy in gaps if yy >= y0] or [y0])      # noqa: E731
+        ylo6 = up(ymin)
+        y5 = up(ylo6 + 6.6)
+        if v.y(zm) < y5 + 6.6:
+            zm = g.hb + (up(y5 + 6.6) - v.y(g.hb)) / v.k
     else:
         zlo = g.hb + 12.0 / v.k                   # trên kích thước gờ cổ móng
         zi = [z for z in hz if zlo < z < zm - 0.1]
         y5 = v.y(zi[0] if zi else 0.5 * (g.hb + zm)) - 3.0
     z5 = g.hb + (y5 + 3.0 - v.y(g.hb)) / v.k
-    ylo = y5 - d67
+    ylo = ylo6 if nums67 else y5
+    co([v.P(U(0, zm), zm), v.P(U(m - 1, zm), zm)], xp, v.y(zm), 1, 4, f"{ni(p['RC_N'])}%%C{ni(p['RC_D'])}",
+       mode=True)
     w = txtw(T_DAI, 2.0)
     bx = xp
     xb = bx + 4.3 + w + 1.3
@@ -206,7 +223,7 @@ def pier_section(c: Ctx, g: Geo, co: Callouts, cx, ytop):
             balloon(c, xb, y5, g.sq(5))
     if nums67:
         with c.item("callout6", f"Chú thích thép {', '.join(g.sq(q) for q in nums67)}"):
-            c.ln("CHU", xv, ylo, bx, ylo, fixed1=True)
+            c.ln("CHU", xv, ylo, bx, ylo)                 # leader ngang đi theo tag khi dời
             c.ln("CHU", bx, ylo, xb - 3.0, ylo)
             c.txj("CHU", bx + 1.0, ylo + 0.8, 2.0, T_DAI, 0)
             c.txj("CHU", bx + 1.0, ylo - 2.8, 2.0, phi(p["RP_D"], p["RP_S"]), 0)

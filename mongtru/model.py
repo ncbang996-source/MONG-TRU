@@ -293,7 +293,7 @@ def bolt_dia(p) -> int:
 
 
 # bảng bố trí bu lông neo móng: Ø -> (h: chiều cao bu lông nhô lên từ mặt cổ móng, t: nửa khoảng cách 2 bu lông) mm
-BOLT_TABLE = {36: (200, 125), 42: (200, 125), 48: (200, 125), 56: (200, 125), 64: (220, 200), 72: (250, 200),
+BOLT_TABLE = {36: (160, 125), 42: (180, 125), 48: (200, 125), 56: (200, 125), 64: (220, 200), 72: (250, 200),
               80: (250, 200), 90: (270, 200)}
 BOLT_NAMES = ["BLN-M36-250", "BLN-M42-250", "BLN-M48-250", "BLN-M56", "BLN-M64", "BLN-M72", "BLN-M80", "BLN-M90"]
 

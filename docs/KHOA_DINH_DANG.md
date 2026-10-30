@@ -28,8 +28,12 @@ nhánh này; lấy lại đúng mã nguồn lúc đó: `git checkout ban-on-dinh
 - Excel: dự phòng thép = 0 thì không ghi chú "đã gồm dự phòng".
 - Thêm tỷ lệ từng hình tờ thép (`TL_PIER`, `TL_SLAB`, `TL_11`, `TL_MESH`, 0 = tự động như cũ).
 
-## Thay đổi định dạng theo cmt_TRU_LECH_2 (người dùng yêu cầu) - đã ghi lại mẫu golden
+## Thay đổi định dạng theo cmt_TRU_LECH_2, _3 (người dùng yêu cầu) - đã ghi lại mẫu golden
 - Bảng bố trí bu lông neo (h, t) - `model.BOLT_TABLE`; bu lông vẽ cao h, khoảng cách 2t.
 - Thanh chống xoay 90° khi thép chấm nằm trong (`Geo.chair_rot`).
 - Tag đai 5 và 6/7 tách riêng, dùng chung đường đứng; nút chụm tag 1, 2 ở điểm giữa 2 điểm leader; dấu xẹt xoay
   (đai bát giác) đi theo điểm leader khi kéo.
+- Bảng bố trí bu lông neo cập nhật h: M36-250 = 160, M42-250 = 180 (mm).
+- Thanh chống xoay kẹp sát thép chấm (không còn khe hở), tag thanh chống chỉ vào thanh chống.
+- Tag 5 và tag 6/7 đều đặt giữa khe hở 2 đai, xếp từ dưới lên (không đè tag 2, 4); leader ngang tag 6 di chuyển
+  theo tag khi kéo.
