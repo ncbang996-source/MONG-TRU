@@ -98,6 +98,11 @@ REBAR_FIELDS = [
     ("Đai phụ cổ móng", "RP_D", "RP_S"), ("Lưới đầu trụ", "RL_D", "RL_S"),
 ]
 STAGES = ["TKCS", "TKBVTC", "TKKT"]
+# tỷ lệ từng hình tờ thép (trống / "Tự động" = chương trình chọn)
+TL_FIELDS = [("TL_PIER", "Bố trí thép trụ 1/"), ("TL_SLAB", "Thép bản đế 1/"), ("TL_11", "Mặt cắt 1-1 1/"),
+             ("TL_MESH", "Lưới thép đầu trụ 1/")]
+TL_AUTO = "Tự động"
+TL_VALUES = [TL_AUTO, "10", "15", "20", "25", "30", "40", "50", "60", "75", "100", "125"]
 
 # bảng màu giao diện
 C = {
@@ -110,26 +115,36 @@ C = {
 
 class App(tk.Tk):
     def __init__(self):
+        if sys.platform == "win32":
+            try:                                   # thanh taskbar dùng icon của app (không gộp với python / Tk)
+                import ctypes
+                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("SEIAC.VE_MONGTRU")
+            except Exception:
+                pass
         super().__init__()
         self.title(f"{APP_NAME} {APP_VER}")
         try:
             ico = os.path.join(cad.resource_dir(), "icon.ico")
             if sys.platform == "win32":
-                self.iconbitmap(ico)
-            else:
-                from PIL import Image, ImageTk
-                self._ico = ImageTk.PhotoImage(Image.open(ico))
-                self.iconphoto(True, self._ico)
+                self.iconbitmap(default=ico)       # mọi cửa sổ (kể cả hộp thoại)
+            from PIL import Image, ImageTk
+            im = Image.open(os.path.join(cad.resource_dir(), "icon.png")).convert("RGBA")
+            # icon lớn + nhỏ (taskbar / thanh tiêu đề) cho mọi cửa sổ
+            self._icos = [ImageTk.PhotoImage(im.resize((n, n), Image.LANCZOS)) for n in (256, 64, 48, 32, 16)]
+            self.iconphoto(True, *self._icos)
         except Exception:
             pass
-        self.geometry("1400x860")
-        self.minsize(1100, 700)
+        sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+        self.geometry(f"{min(1400, sw - 40)}x{min(860, sh - 80)}")
+        self.minsize(min(1100, sw - 40), min(700, sh - 80))
         self.st = load_settings()
         self.p = model.default_params()
         self.p.update({k: v for k, v in self.st.get("params", {}).items() if k in self.p})
         self.xls = self.st.get("xls", "")
         # móng 2 loại (mongtru.lech): mp = thông số cả vị trí móng, ti = loại đang sửa; None = 4 trụ giống nhau
-        self.mp = self.st.get("mixed") if lui.valid_saved(self.st.get("mixed")) else None
+        self.mp = lui.restore(self.st["mixed"]) if self.st.get("mixed") else None
+        if self.mp is None and model.npier(self.p) % 4:      # thông số loại móng 2 loại mà không khôi phục được
+            self.p["NPIER"] = 4.0
         self.ti = 0
         if self.mp:
             self.p = lui.fill_params(self.mp, 0)
@@ -237,12 +252,15 @@ class App(tk.Tk):
         tk.Frame(self, background=C["orange"], height=3).pack(side="top", fill="x")
 
         # thanh công cụ chia nhóm
-        bar = ttk.Frame(self, style="Bar.TFrame", padding=(8, 4, 8, 6))
+        bar = ttk.Frame(self, style="Bar.TFrame", height=70)
         bar.pack(side="top", fill="x")
+        bar.pack_propagate(False)
+
+        groups = []
 
         def group(title):
             g = ttk.Frame(bar, style="Bar.TFrame")
-            g.pack(side="left", padx=(0, 14))
+            groups.append(g)
             ttk.Label(g, text=title.upper(), style="Bar.TLabel").pack(anchor="w")
             row = ttk.Frame(g, style="Bar.TFrame")
             row.pack(anchor="w")
@@ -262,12 +280,29 @@ class App(tk.Tk):
         self.v_auto = tk.BooleanVar(value=self.st.get("auto", True))
         ttk.Checkbutton(g3, text="Tự cập nhật", variable=self.v_auto, style="Bar.TCheckbutton").pack(side="left", padx=6)
         self.v_arr = tk.BooleanVar(value=False)
-        ttk.Checkbutton(g3, text="Sắp xếp (kéo thả, phím mũi tên, Ctrl+Z / Ctrl+Y)", variable=self.v_arr, style="Bar.TCheckbutton",
+        ttk.Checkbutton(g3, text="Sắp xếp (kéo thả, phím mũi tên)", variable=self.v_arr, style="Bar.TCheckbutton",
                         command=self._redraw).pack(side="left", padx=(0, 6))
         g4 = group("Xuất")
         btn(g4, "PDF", self.export_pdf, "Export")
         btn(g4, "AutoCAD DXF", self.export_dxf, "Export")
         btn(g4, "Excel khối lượng", self.export_xlsx, "Export")
+
+        def flow(e=None):
+            """Màn hình hẹp: các nhóm nút tự xuống dòng (không bị khuất)."""
+            wmax = max(200, bar.winfo_width() - 16)
+            x = y = hrow = 0
+            for g in groups:
+                w, h = g.winfo_reqwidth(), g.winfo_reqheight()
+                if x > 0 and x + w > wmax:
+                    x, y, hrow = 0, y + hrow + 4, 0
+                g.place(x=8 + x, y=4 + y)
+                x += w + 14
+                hrow = max(hrow, h)
+            hb = y + hrow + 10
+            if abs(bar.winfo_height() - hb) > 1:
+                bar.configure(height=hb)
+        bar.bind("<Configure>", flow)
+        self.after(50, flow)
 
         info = ttk.Frame(self, style="Bg.TFrame", padding=(10, 3))
         info.pack(side="top", fill="x")
@@ -441,6 +476,17 @@ class App(tk.Tk):
             e.grid(row=r, column=1, columnspan=3, sticky="w", pady=1)
             self._mixw += [lb, e]
             r += 1
+        # hạ cao độ mặt đất / bậc đáy hố đào chung: mép trên tại tim móng + (x, y), hệ số mái (chung 2 loại)
+        for kx, ky, km, lbl in (("GX", "GY", "GM", "Hạ cao độ mặt đất: x / y (m), mái 1:"),
+                                ("FX", "FY", "FM", "Bậc đáy hố chung: x / y (m), mái 1:")):
+            lb = ttk.Label(body, text=lbl)
+            lb.grid(row=r, column=0, sticky="w", padx=(10, 4), pady=1)
+            self._mixw.append(lb)
+            for j, k in enumerate((kx, ky, km)):
+                e = ttk.Entry(body, textvariable=self._var(k), width=5)
+                e.grid(row=r, column=1 + j, sticky="w", pady=1)
+                self._mixw.append(e)
+            r += 1
         self._npw = []
         for k, lbl in DIM_FIELDS:
             e = row(lbl, k, 8)
@@ -471,11 +517,13 @@ class App(tk.Tk):
         row("Lớp BT bảo vệ còn lại (mm)", "COVER", 6)
         row("Dự phòng thép (%)", "DP", 6)
         head("4. Bản vẽ")
-        ttk.Label(body, text="Tỷ lệ 1/").grid(row=r, column=0, sticky="w", padx=(10, 4))
+        ttk.Label(body, text="Tỷ lệ tờ 1 (A-A, mặt bằng) 1/").grid(row=r, column=0, sticky="w", padx=(10, 4))
         ttk.Combobox(body, textvariable=self._var("SCALE"), values=[str(s) for s in model.SCALES], width=6,
                      state="readonly").grid(row=r, column=1, sticky="w")
         ttk.Button(body, text="Tự chọn", command=self.auto_scale, style="Small.TButton").grid(row=r, column=2, sticky="w")
         r += 1
+        for k, lbl in TL_FIELDS:                   # tỷ lệ từng hình tờ thép: chọn trong danh sách hoặc gõ số
+            row(lbl, k, 10, values=TL_VALUES)
 
     # ------------------------------------------------------------ dữ liệu
     def _fill(self):
@@ -489,7 +537,7 @@ class App(tk.Tk):
             self.cb_ti.config(values=lui.type_labels(self.mp))
             self.cb_ti.current(self.ti)
         for k, v in self.vars.items():
-            if k in lui.MIX_KEYS and not self.mp:
+            if k in lui.MIX_KEYS + lui.STEP_KEYS and not self.mp:
                 continue
             if k == "HT":
                 v.set(["Đỡ", "Néo góc", "Néo dừng"][int(p["HT"])])
@@ -499,6 +547,8 @@ class App(tk.Tk):
                 v.set(f"{p[k] * 1000:g}")
             elif k in ("SCALE",):
                 v.set(str(int(p[k])))
+            elif k.startswith("TL_"):
+                v.set(f"{p.get(k, 0):g}" if p.get(k, 0) > 0 else TL_AUTO)
             elif isinstance(p.get(k), float):
                 v.set(f"{p[k]:g}")
             else:
@@ -529,9 +579,12 @@ class App(tk.Tk):
     def _collect_p(self):
         p = dict(self.p)
         for k, v in self.vars.items():
-            if k in lui.MIX_KEYS:
+            if k in lui.MIX_KEYS or (k in lui.STEP_KEYS and not self.mp):
                 continue
             s = v.get().strip()
+            if k in lui.STEP_KEYS:
+                p[k] = float(s.replace(",", ".") or 0)
+                continue
             if k == "HT":
                 p["HT"] = {"đỡ": 0, "néo góc": 1, "néo": 1, "néo dừng": 2}.get(s.lower(), model.ht_from_string(s))
             elif k == "PIT_DRAW":
@@ -540,6 +593,8 @@ class App(tk.Tk):
                 p[k] = float(s.replace(",", ".")) / 1000.0
             elif k == "SCALE":
                 p[k] = int(float(s))
+            elif k.startswith("TL_"):
+                p[k] = 0.0 if s in ("", TL_AUTO) else float(s.replace(",", "."))
             elif isinstance(model.default_params().get(k), float):
                 p[k] = float(s.replace(",", "."))
             else:

@@ -60,7 +60,7 @@ def build(p: dict, frame_path: str | None = None, fields: dict | None = None, of
     if detail:
         origins.append((SHEET_DX, 0.0))
         n0 = len(msp)
-        frame.place(doc, SHEET_DX, 0.0, title_values(p, sheet2.det_scale(g), 2, nsheet), fields, tags)
+        frame.place(doc, SHEET_DX, 0.0, title_values(p, sheet2.pier_den(g), 2, nsheet), fields, tags)
         c2 = Ctx(doc, msp, SHEET_DX, 0.0, g.den, offsets, "s2")
         sheet2.draw(c2, g)
         handles.append({e.dxf.handle for e in list(msp)[n0:]})
@@ -68,7 +68,7 @@ def build(p: dict, frame_path: str | None = None, fields: dict | None = None, of
     if s3:
         origins.append((2 * SHEET_DX, 0.0))
         n0 = len(msp)
-        frame.place(doc, 2 * SHEET_DX, 0.0, title_values(p, sheet2.det_scale(g), 3, nsheet), fields, tags)
+        frame.place(doc, 2 * SHEET_DX, 0.0, title_values(p, sheet2.pier_den(g), 3, nsheet), fields, tags)
         c3 = Ctx(doc, msp, 2 * SHEET_DX, 0.0, g.den, offsets, "s3")
         sheet2.draw3(c3, g)
         handles.append({e.dxf.handle for e in list(msp)[n0:]})

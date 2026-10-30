@@ -4,6 +4,8 @@ mặt bằng 4 trụ (ghi tên loại trong từng bản đế), bảng tổng k
 Dùng lại hàm vẽ 1 trụ của bản 4 trụ giống nhau (mongtru/sheet1.py) - không sửa file đó."""
 from __future__ import annotations
 
+import numpy as np
+
 from .. import model
 from ..cad import Ctx, txtw
 from ..sheet1 import T_AXIS, T_FILL, T_SOIL, XMAX, bolts_aa, col_x, draw_route, pad_aa, pad_plan, tim_mong, top_sq
@@ -58,6 +60,59 @@ class Lay:
         return f"{1000 * (self.mp['BT'] + add):.0f}" if self.squeezed else "<>"
 
 
+def rdp(pts, tol):
+    """Rút gọn đường gấp khúc (Ramer-Douglas-Peucker)."""
+    if len(pts) < 3:
+        return pts
+    (x0, y0), (x1, y1) = pts[0], pts[-1]
+    dx, dy = x1 - x0, y1 - y0
+    n = max(1e-12, (dx * dx + dy * dy) ** 0.5)
+    dm, im = -1.0, 0
+    for i in range(1, len(pts) - 1):
+        d = abs(dy * (pts[i][0] - x0) - dx * (pts[i][1] - y0)) / n
+        if d > dm:
+            dm, im = d, i
+    if dm <= tol:
+        return [pts[0], pts[-1]]
+    return rdp(pts[:im + 1], tol)[:-1] + rdp(pts[im:], tol)
+
+
+def _runs(mask):
+    out, cur = [], []
+    for j, v in enumerate(mask):
+        if v:
+            cur.append(j)
+        elif cur:
+            out.append(cur)
+            cur = []
+    if cur:
+        out.append(cur)
+    return out
+
+
+def _cross(us, gz, sz, j0, j1):
+    """Điểm mặt hố cắt mặt đất giữa 2 mẫu j0, j1."""
+    d0, d1 = gz[j0] - sz[j0], gz[j1] - sz[j1]
+    t = d0 / (d0 - d1) if abs(d0 - d1) > 1e-12 else 0.5
+    return us[j0] + t * (us[j1] - us[j0]), gz[j0] + t * (gz[j1] - gz[j0])
+
+
+def section_profiles(L, step=0.005):
+    """Mẫu theo mặt cắt A-A (toạ độ ngang u của hình): (u, cao độ mặt đất, cao độ mặt hố đào) - lấy theo khoảng cách
+    tim trụ thể hiện, mái hố thể hiện 1:SLOPE_DRAW."""
+    mp = dict(L.mp, BT=L.btd)
+    G, S = lm.ground_fn(mp), lm.pit_surface(mp, L.joint, SD)
+    pa, pb = L.P[L.iL], L.P[L.iR]
+    qa = lm.QUAD[L.a]
+    e = L.ext + 8.0 / L.k
+    us = np.arange(-e, e + step / 2, step)
+    if L.ax == "x":
+        xs, ys = us, np.full_like(us, qa[1] * (pa + pb) / 2)
+    else:
+        xs, ys = np.full_like(us, qa[0] * (pa + pb) / 2), us
+    return us, G(xs, ys), S(xs, ys)
+
+
 def _ztxt(z):
     return "%%p0.00" if abs(z) < 5e-4 else f"{z:+.2f}m"
 
@@ -78,57 +133,28 @@ def draw_section(c: Ctx, L: Lay):
         info[s] = dict(t=t, g=g, v=v, xc=xc, zb=zb, zg=zg, wb=wb, yb=L.y(zb), yg=L.y(zg))
     X = lambda u: cx + k * u                                       # noqa: E731
     lo, hi = info[-1], info[1]
-    # ---- hố đào: mái ngoài
-    for s in (-1, 1):
-        d = info[s]
-        xo = d["xc"] + s * d["wb"]
-        c.ln("HINH THUC", X(xo), d["yb"], X(xo + s * SD * (d["zg"] - d["zb"])), d["yg"])
-    if L.joint:
-        # đáy bậc: hố sâu hơn có mái trong đi lên tới cao độ đáy hố nông
-        ds, dn = (lo, hi) if lo["zb"] <= hi["zb"] else (hi, lo)
-        sd = 1 if ds is hi else -1                                 # phía của hố sâu
-        xin = ds["xc"] - sd * ds["wb"]                             # mép trong đáy hố sâu
-        xst = xin - sd * SD * (dn["zb"] - ds["zb"])                # chân bậc trên đáy hố nông
-        c.ln("HINH THUC", X(ds["xc"] + sd * ds["wb"]), ds["yb"], X(xin), ds["yb"])
-        if abs(xst - xin) > 1e-6:
-            c.ln("HINH THUC", X(xin), ds["yb"], X(xst), dn["yb"])
-        c.ln("HINH THUC", X(xst), dn["yb"], X(dn["xc"] - sd * dn["wb"]), dn["yb"])
-    else:
-        # 2 hố riêng: mái trong lên tới mặt đất, cắt nhau dưới mặt đất thì dừng tại giao điểm
-        ul = lo["xc"] + lo["wb"]
-        ur = hi["xc"] - hi["wb"]
-        # mái trái: x = ul + SD (z − zbL); mái phải: x = ur − SD (z − zbR)
-        zi = (ur - ul + SD * (lo["zb"] + hi["zb"])) / (2 * SD)
-        for d, u0, sg in ((lo, ul, 1), (hi, ur, -1)):
-            z1 = min(d["zg"], zi)
-            c.ln("HINH THUC", X(u0), d["yb"], X(u0 + sg * SD * (z1 - d["zb"])), L.y(z1))
-        for d in (lo, hi):
-            c.ln("HINH THUC", X(d["xc"] - d["wb"]), d["yb"], X(d["xc"] + d["wb"]), d["yb"])
-    # ---- mặt đất: mỗi bên theo cao độ trụ đó, 2 mức nối bằng mái 1:1 qua trục tim móng; ngắt tại cổ móng
-    dz = lo["zg"] - hi["zg"]
-    xl_, xr_ = -abs(dz) / 2, abs(dz) / 2
-    xe = L.ext + 8.0 / k
-    segs = [(-xe, lo["zg"], xl_, lo["zg"]), (xl_, lo["zg"], xr_, hi["zg"]), (xr_, hi["zg"], xe, hi["zg"])]
+    # ---- mặt đất (hạ cao độ) và hố đào: giao tuyến của mặt đất / mặt hố với mặt cắt (toạ độ thể hiện)
+    us, gz, sz = section_profiles(L)
     cuts = []
     for s in (-1, 1):
         d = info[s]
-        a_, b_ = col_x(d["g"], d["xc"], s, d["zg"] - lm.z_pad(d["t"]))
-        cuts.append((a_, b_))
-    for x0, z0, x1, z1 in segs:
-        if x1 - x0 < 1e-9:
-            continue
-        pts = [x0, x1]
-        for a_, b_ in cuts:
-            if x0 < a_ < x1 or x0 < b_ < x1:
-                pts += [max(x0, a_), min(x1, b_)]
-        pts.sort()
-        for j in range(0, len(pts) - 1):
-            u0, u1 = pts[j], pts[j + 1]
-            um = 0.5 * (u0 + u1)
-            if any(a_ < um < b_ for a_, b_ in cuts):
-                continue
-            zz = lambda u: z0 + (z1 - z0) * (u - x0) / (x1 - x0)    # noqa: E731
-            c.ln("HINH THUC", X(u0), L.y(zz(u0)), X(u1), L.y(zz(u1)))
+        cuts.append(col_x(d["g"], d["xc"], s, d["zg"] - lm.z_pad(d["t"])))
+    ins = sz < gz - 1e-9
+    for run in _runs(ins):                                         # nét hố: đáy + mái, 2 đầu nối vào mặt đất
+        pts = [(us[j], sz[j]) for j in run]
+        j0, j1 = run[0], run[-1]
+        if j0 > 0:
+            pts.insert(0, _cross(us, gz, sz, j0 - 1, j0))
+        if j1 < len(us) - 1:
+            pts.append(_cross(us, gz, sz, j1, j1 + 1))
+        c.pl("HINH THUC", False, [(X(u), L.y(z)) for u, z in rdp(pts, 0.002)])
+    out = np.ones(len(us), bool)                                   # mặt đất (sau khi đắp), ngắt tại cổ móng
+    for a_, b_ in cuts:
+        out &= ~((us > a_) & (us < b_))
+    for run in _runs(out):
+        pts = [(us[j], gz[j]) for j in run]
+        if len(pts) > 1:
+            c.pl("HINH THUC", False, [(X(u), L.y(z)) for u, z in rdp(pts, 0.002)])
     # ---- trục, ký hiệu đối xứng, bu lông
     ylt = min(lo["yb"], hi["yb"])
     for s in (-1, 1):
@@ -226,14 +252,15 @@ def dim_section(c: Ctx, L: Lay, info):
         hl, hb_ = k * (g.Bh + model.ML), k * g.Bh
         x0 = X(d["xc"])
         yb = d["yb"]
-        c.dimH("DIM", (x0 - hb_, yb), (x0 + hb_, yb), L.yd)
-        c.dimH("DIM", (x0 - hl, yb), (x0 - hb_, yb), L.yd, (x0 - hb_ + 1.0 + w100 / 2, L.yd + 2.0))
-        c.dimH("DIM", (x0 + hb_, yb), (x0 + hl, yb), L.yd, (x0 + hb_ - 1.0 - w100 / 2, L.yd + 2.0))
+        yd = yb - 10.4                                     # kích thước đáy ngay dưới từng trụ
+        c.dimH("DIM", (x0 - hb_, yb), (x0 + hb_, yb), yd)
+        c.dimH("DIM", (x0 - hl, yb), (x0 - hb_, yb), yd, (x0 - hb_ + 1.0 + w100 / 2, yd + 2.0))
+        c.dimH("DIM", (x0 + hb_, yb), (x0 + hl, yb), yd, (x0 + hb_ - 1.0 - w100 / 2, yd + 2.0))
         # mép hố phía ngoài
         xo, xp = X(d["xc"] + s * (g.Bh + model.ML)), X(d["xc"] + s * d["wb"])
         if abs(xp - xo) > 0.5:
             w = txtw(f"{1000 * (d['wb'] - g.Bh - model.ML):.0f}", 2.0)
-            c.dimH("DIM", (xo, yb), (xp, yb), L.yd, (xp + s * (1.0 + w / 2), L.yd + 2.0) if abs(xp - xo) < w + 1 else None)
+            c.dimH("DIM", (xo, yb), (xp, yb), yd, (xp + s * (1.0 + w / 2), yd + 2.0) if abs(xp - xo) < w + 1 else None)
         # gờ quanh chân cổ móng + cạnh chân cổ b2 khi cổ vát
         yg = ybase + k * g.hb
         for sg in (-1, 1):
@@ -283,6 +310,7 @@ def draw_plan(c: Ctx, L: Lay):
         v.ln("TRUC", s * L.T, -E, s * L.T, E)
         v.ln("TRUC", -E, s * L.T, E, s * L.T)
     v.ln("TRUC", -E, 0.0, E, 0.0)
+    _ground_step_plan(c, L, v, E)
     tim_mong(c, cx, cy, 1.2)
     with c.item("axis", "Ghi chú tim móng"):
         w = txtw(T_AXIS, 2.0)
@@ -330,6 +358,56 @@ def dim_piers(mp) -> list:
             done.add(ta[q])
             out.append(q)
     return out
+
+
+def step_lines(mp, cx, cy, w, E):
+    """Đường mép trên và chân mái hạ cao độ trên mặt bằng: [(mép trên: [đoạn]), (chân mái: [đoạn])] trong khung ±E.
+    Vùng cao = các góc phần tư của trụ cao (đỉnh (cx, cy)); chân mái cách mép trên w (vào vùng thấp)."""
+    lv = {q: lm.ground(mp["TYPES"][lm.type_at(mp)[q]]) for q in range(1, 5)}
+    hi = max(lv.values())
+    H = {lm.QUAD[q] for q, z in lv.items() if z > hi - 1e-9}
+    if len(H) == 4:
+        return [], []
+    if len(H) == 2:                                  # nửa mặt phẳng
+        sxs = {q[0] for q in H}
+        if len(sxs) == 1:                            # vùng cao 1 phía theo x
+            sx = sxs.pop()
+            return [[(cx, -E), (cx, E)]], [[(cx - sx * w, -E), (cx - sx * w, E)]]
+        sy = {q[1] for q in H}.pop()
+        return [[(-E, cy), (E, cy)]], [[(-E, cy - sy * w), (E, cy - sy * w)]]
+    Q = next(iter(H)) if len(H) == 1 else next(q for q in lm.QUAD.values() if q not in H)
+    qx, qy = Q
+    din = -1 if len(H) == 1 else 1                   # hướng vào vùng thấp: ra khỏi góc cao / vào góc thấp
+    top = [[(cx + qx * E, cy), (cx, cy), (cx, cy + qy * E)]]
+    tx, ty = cx + din * qx * w, cy + din * qy * w
+    toe = [[(cx + qx * E, ty), (tx, ty), (tx, cy + qy * E)]]
+    return top, toe
+
+
+def _ground_step_plan(c, L, v, E):
+    """Mặt bằng: đường mép trên (nét liền) và chân mái (nét đứt) chỗ hạ cao độ mặt đất."""
+    mp = L.mp
+    zs = [lm.ground(t) for t in mp["TYPES"]]
+    dz = abs(zs[0] - zs[1])
+    if dz < 1e-6:
+        return
+    w = dz * mp.get("GM", 1.0)
+    top, toe = step_lines(mp, mp.get("GX", 0.0), mp.get("GY", 0.0), w, E)
+    clip = lambda p: (max(-E, min(E, p[0])), max(-E, min(E, p[1])))    # noqa: E731
+    with c.item("gstep", "Hạ cao độ mặt đất"):
+        for seg in top:
+            v.pl("HINH THUC", False, [clip(p) for p in seg])
+        for seg in toe:
+            pts = [clip(p) for p in seg]
+            for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+                ln = ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** 0.5
+                n = max(1, int(ln * L.k / 3.0))
+                for j in range(0, n, 2):          # nét đứt 1.5 mm
+                    a, b = j / n, min(1.0, (j + 1) / n)
+                    v.ln("HINH THUC", x0 + a * (x1 - x0), y0 + a * (y1 - y0), x0 + b * (x1 - x0), y0 + b * (y1 - y0))
+        seg = [clip(p) for p in toe[0]]                   # ghi chú tại góc / giữa đường chân mái
+        lx, ly = seg[1] if len(seg) == 3 else ((seg[0][0] + seg[1][0]) / 2, (seg[0][1] + seg[1][1]) / 2)
+        c.tx("CHU", v.x(lx) + 1.0, v.y(ly) + 1.0, 1.8, f"MÁI HẠ CAO ĐỘ 1:{mp.get('GM', 1.0):g}")
 
 
 def _dims(c, L, v, pc, El, Er, Et, Eb, ys0, gap):

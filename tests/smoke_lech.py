@@ -34,7 +34,7 @@ assert lm.bolt_text(mp) == "16M36"
 # 2 loại giống nhau -> trùng công thức bản 4 trụ giống nhau (cả hố chung)
 p, _ = model.read_excel(os.path.join(ROOT, "samples", "D112-30.xls"))
 mq = lm.default_mp()
-mq.update({k: p[k] for k in lm.COMMON})
+mq.update({k: p[k] for k in lm.COMMON if k in p})
 for t in mq["TYPES"]:
     t.update({k: p[k] for k in lm.TYPE_KEYS})
 for bt in (3.2, 8.0):
@@ -69,6 +69,9 @@ cases = {
     "tkkt": case(GD="TKKT"),
     "neo_dung": case(HT=2),
     "do": case(HT=0, t2=dict(RC_N=28)),
+    "ha_cao_do": case(GX=-0.5, GY=0.5, GM=1.5, t1=dict(CD=-2.0)),
+    "ha_2_2": case(GY=1.0, t1=dict(POS=[1, 2], CD=-1.5), t2=dict(POS=[3, 4])),
+    "bac_day": case(BT=7.0, FX=0.75, FY=-0.75, t1=dict(CD=-2.0, H1=4.5)),
 }
 for nm, m in cases.items():
     r = le.build(m, os.path.join(ROOT, "assets", "frames", "KT-A3.dxf"))
@@ -91,6 +94,13 @@ for nm, m in cases.items():
     MixedScene(m, quarter=True)
     print(f"  {nm}: {nsh} tờ, tỷ lệ tờ 1 1/{m['SCALE']}, A-A {lm.section_pair(m)}, "
           f"đào {'chung' if lm.pit_joint(m) else 'riêng'} {lm.vol_dao(m):.2f} m3")
+# hạ cao độ / bậc đáy: tích phân số trùng công thức chóp cụt khi mặt đất / đáy hố 1 mức
+for m in (cases["mau"], case(BT=5.0)):
+    exact = lm.vol_dao_joint(m) if lm.pit_joint(m) else lm.vol_dao_sep(m)
+    assert abs(lm.vol_dao_num(m) - exact) < 0.002 * exact, (lm.vol_dao_num(m), exact)
+assert lm.vol_dao(cases["ha_cao_do"]) > lm.vol_dao_sep(cases["ha_cao_do"])        # mái hạ cao độ cắt qua hố
+assert not any("Bậc đáy" in w for w in lm.warnings(cases["bac_day"]))             # bậc đáy đặt đúng chỗ
+assert any("Bậc đáy" in w for w in lm.warnings(case(BT=6.0, t1=dict(CD=-2.0, H1=4.5))))   # tại tim móng: cắt vào đáy
 # mặt cắt A-A qua 2 trụ khác loại
 for nm, m in cases.items():
     a, b, _ = lm.section_pair(m)

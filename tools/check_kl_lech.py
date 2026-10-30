@@ -28,6 +28,8 @@ CASES = {
     "chung_bac": (dict(BT=5.5), [dict(CD=-1.5, B2=1.6), dict(B=3.6)]),
     "chung_bang": (dict(BT=5.0), [{}, dict(B=3.8)]),
     "vat_ca2": (dict(DP=5.0), [dict(B2=1.5, RC_N=28), dict(B2=1.3, RB_BOT_S=150)]),
+    "ha_cao_do": (dict(GX=-0.5, GY=0.5, GM=1.5), [dict(CD=-2.0), {}]),
+    "bac_day": (dict(BT=7.0, FX=0.75, FY=-0.75), [dict(CD=-2.0, H1=4.5), {}]),
 }
 base, _ = lm.read_excel(SAMPLE)
 mps = {}

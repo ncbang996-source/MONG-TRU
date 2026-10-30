@@ -10,6 +10,7 @@ import re
 from . import model as lm
 
 MIX_KEYS = ("POS", "CD")
+STEP_KEYS = tuple(lm.STEP_DEF)            # hạ cao độ mặt đất / bậc đáy hố chung (chỉ ở chế độ 2 loại)
 
 
 def type_labels(mp) -> list:
@@ -60,6 +61,22 @@ def pit_text(mp) -> str:
     if jd != j:
         txt += "  (hình vẽ thể hiện: " + ("đào chung" if jd else "đào riêng") + ")"
     return txt
+
+
+def restore(d):
+    """mp lưu ở settings (có thể từ bản cũ thiếu khoá mới) -> mp đủ khoá, hoặc None nếu không dùng được."""
+    try:
+        base = lm.default_mp()
+        out = {k: d.get(k, base[k]) for k in lm.COMMON}
+        out["TYPES"] = []
+        for i in range(2):
+            t = d["TYPES"][i]
+            nt = dict(base["TYPES"][i])
+            nt.update({k: t[k] for k in nt if k in t})
+            out["TYPES"].append(nt)
+        return out if valid_saved(out) else None
+    except (KeyError, TypeError, IndexError, AttributeError):
+        return None
 
 
 def valid_saved(d) -> bool:

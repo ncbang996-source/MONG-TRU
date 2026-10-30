@@ -160,11 +160,15 @@ def _earth(wb, mp, info):
                          f"={pc[na]}+{pc[nb]}-({a2[na]}+{a2[nb]})/2",
                          f"P{na} + P{nb} − (a2{na} + a2{nb})/2; <= 0: các hố chạm nhau", "m"))
     joint = lm.pit_joint(mp)
-    if joint:
-        vd = line(1, "Đào đất hố móng (đào chung 1 hố, đáy bậc)", "Vdao", round(lm.vol_dao(mp), 3),
-                  "Chương trình tính theo lát cắt: diện tích hố chung tại mỗi cao độ = hình chữ nhật bao các hố "
-                  "riêng có ở cao độ đó; sửa thông số thì xuất lại file", "m3", True)
-        chk = f'=IF(MIN({",".join(gaps)})>0,"Các hố không còn chạm nhau - xuất lại file","")'
+    if joint or not lm.uniform(mp):
+        how = "đào chung 1 hố" if joint else "đào riêng từng trụ"
+        vd = line(1, f"Đào đất hố móng ({how}, mặt đất / đáy hố có bậc)", "Vdao", round(lm.vol_dao(mp), 3),
+                  f"Chương trình tính: mặt đất hạ cao độ tại tim móng + ({mp.get('GX', 0):g}; {mp.get('GY', 0):g}) m, "
+                  f"mái 1:{mp.get('GM', 1):g}; bậc đáy hố chung tại tim móng + ({mp.get('FX', 0):g}; "
+                  f"{mp.get('FY', 0):g}) m, mái 1:{mp.get('FM', 0.5):g}; mái hố 1:m. Sửa thông số thì xuất lại file",
+                  "m3", True)
+        chk = (f'=IF(MIN({",".join(gaps)})>0,"Các hố không còn chạm nhau - xuất lại file","")' if joint else
+               f'=IF(MIN({",".join(gaps)})<=0,"Các hố chạm nhau (đào chung) - xuất lại file","")')
     else:
         terms = "+".join(f"T{x['n']}_n*{hd[x['n']]}/3*({a1[x['n']]}^2+{a2[x['n']]}^2+{a1[x['n']]}*{a2[x['n']]})"
                          for x in info)
@@ -228,7 +232,8 @@ def _summary(wb, mp, info, dat):
         K._cell(ws, 3, j, f, fmt, align=Alignment(horizontal="center", vertical="center"))
     names = ", ".join(f"loại {x['n']}: {len(mp['TYPES'][x['n'] - 1]['POS'])}{mp['TYPES'][x['n'] - 1]['NAME']}"
                       for x in info)
-    ws.cell(row=5, column=1, value=f"Cả vị trí móng ({names}). Khối lượng thép đã gồm dự phòng.").font = \
+    dpt = f" Khối lượng thép đã gồm {mp['DP']:g}% dự phòng." if mp.get("DP", 0) > 0 else ""
+    ws.cell(row=5, column=1, value=f"Cả vị trí móng ({names}).{dpt}").font = \
         Font(italic=True, color="808080")
     jd = [j for j, (h, _, _) in enumerate(cols, 1) if h.startswith("Ø")]
     jt = next(j for j, (h, _, _) in enumerate(cols, 1) if h.startswith("TỔNG K.LƯỢNG THÉP"))

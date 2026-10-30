@@ -80,7 +80,7 @@ def bolts_aa(c: Ctx, g: Geo, xc_paper):
     gp = g.k * model.bolt_gap(g.p, g.bb) / 2
     top = g.ytop
     for t in (-1, 1):
-        top = bolt_side(c, g.k, xc_paper + t * gp, g.ytop)
+        top = bolt_side(c, g.k, xc_paper + t * gp, g.ytop, model.bolt_dia(g.p) / 1000.0)
     return top
 
 

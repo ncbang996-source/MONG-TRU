@@ -12,16 +12,22 @@ from __future__ import annotations
 
 import re
 
+import numpy as np
+
 from .. import model
 
 QUAD = {1: (-1, 1), 2: (1, 1), 3: (-1, -1), 4: (1, -1)}      # vị trí trụ -> hướng (x, y) so với tim móng
 ROW_OFF = 22                                                  # khối loại 2 lùi xuống 22 dòng so với loại 1
 
 COMMON = ("GD", "COT", "TENMONG", "BTM", "BTL", "CODE", "MABV", "HT", "BT", "SLOPE", "MPIT", "DP", "SCALE",
-          "PIT_DRAW")
+          "PIT_DRAW", "GX", "GY", "GM", "FX", "FY", "FM")
+# hạ cao độ mặt đất (2 trụ khác cao độ thiết kế): mép trên chỗ hạ tại tim móng + (GX, GY) (m), mái 1:GM;
+# bậc đáy hố đào chung (2 trụ khác cao độ đáy hố): mép trên bậc tại tim móng + (FX, FY), mái 1:FM
+STEP_DEF = {"GX": 0.0, "GY": 0.0, "GM": 1.0, "FX": 0.0, "FY": 0.0, "FM": 0.5}
 TYPE_KEYS = ("B", "H1", "H2", "B1", "B2", "HB", "HV", "BLN", "COVER_B", "COVER",
              "RB_BOT_D", "RB_BOT_S", "RB_TOP_D", "RB_TOP_S", "RB_CH_D", "RB_CH_S",
-             "RC_D", "RC_N", "RT_D", "RT_S", "RP_D", "RP_S", "RL_D", "RL_S", "RL_N")
+             "RC_D", "RC_N", "RT_D", "RT_S", "RP_D", "RP_S", "RL_D", "RL_S", "RL_N",
+             "TL_PIER", "TL_SLAB", "TL_11", "TL_MESH")
 
 # ô khối loại 1 (loại 2: cùng cột, +ROW_OFF dòng)
 T_NUM = {"B": "B10", "H1": "B11", "H2": "B12", "BT": "B13", "B1": "B14", "B2": "B15", "HB": "B16", "HV": "B17"}
@@ -63,7 +69,7 @@ def short_name(s: str) -> str:
 
 
 def default_mp() -> dict:
-    p = model.default_params()
+    p = dict(model.default_params(), **STEP_DEF)
     mp = {k: p[k] for k in COMMON}
     t = {k: p[k] for k in TYPE_KEYS}
     mp["TYPES"] = [dict(t, NAME="T1", POS=[1], CD=0.0), dict(t, NAME="T2", POS=[2, 3, 4], CD=0.0)]
@@ -226,6 +232,8 @@ def z_pit(t) -> float:
 
 
 def validate(mp: dict) -> str | None:
+    if mp.get("GM", 1.0) < 0 or mp.get("FM", 0.5) < 0:
+        return "Hệ số mái hạ cao độ / bậc đáy hố không được âm."
     for i, t in enumerate(mp["TYPES"]):
         p = type_params(mp, i)
         p["NPIER"] = 4.0
@@ -250,6 +258,16 @@ def warnings(mp: dict) -> list:
     out = []
     for i in range(2):
         out += [f"Loại {i + 1}: {w}" for w in model.warnings(type_params(mp, i))]
+    if pit_joint(mp) and len({round(z_pit(t), 6) for t in mp["TYPES"]}) > 1:
+        # bậc đáy hố chung không được ăn vào đáy hố của trụ nào (đáy hố trụ phải đúng cao độ đáy lót)
+        F = floor_fn(mp)
+        bad = []
+        for q, (x0, x1, y0, y1, zb) in zip(range(1, 5), pit_boxes(mp)):
+            xs, ys = np.meshgrid(np.linspace(x0, x1, 21), np.linspace(y0, y1, 21))
+            if np.abs(F(xs, ys) - zb).max() > 1e-3:
+                bad.append(str(q))
+        if bad:
+            out.append(f"Bậc đáy hố đào chung cắt vào đáy hố trụ {', '.join(bad)}: chỉnh vị trí / hệ số mái bậc đáy.")
     return out
 
 
@@ -345,8 +363,99 @@ def vol_dao_joint(mp) -> float:
     return v
 
 
+def _dist_quads(x, y, quads, cx, cy):
+    """Khoảng cách từ điểm (x, y) tới hợp các góc phần tư quads (sx, sy) có đỉnh tại (cx, cy)."""
+    d = np.full(np.shape(x), np.inf)
+    for sx, sy in quads:
+        dx = np.maximum(0.0, -sx * (x - cx))
+        dy = np.maximum(0.0, -sy * (y - cy))
+        d = np.minimum(d, np.maximum(dx, dy))     # mái phẳng: 2 mặt mái giao nhau ở góc
+    return d
+
+
+def _step_fn(levels, cx, cy, m):
+    """Mặt có bậc: levels {vị trí trụ: cao độ}. Vùng các trụ cao nhất (góc phần tư quanh đỉnh (cx, cy)) ở mức cao,
+    ra ngoài vùng đó hạ theo mái 1:m tới mức thấp."""
+    hi, lo = max(levels.values()), min(levels.values())
+    if hi - lo < 1e-9:
+        return lambda x, y: np.full(np.shape(x), hi, dtype=float)
+    quads = [QUAD[q] for q, z in levels.items() if z > hi - 1e-9]
+    m = max(1e-6, m)
+    return lambda x, y: np.maximum(lo, hi - _dist_quads(x, y, quads, cx, cy) / m)
+
+
+def ground_fn(mp):
+    """Mặt đất tự nhiên G(x, y): cao độ thiết kế của từng trụ, hạ cao độ tại tim móng + (GX, GY), mái 1:GM."""
+    lv = {q: ground(mp["TYPES"][type_at(mp)[q]]) for q in range(1, 5)}
+    return _step_fn(lv, mp.get("GX", 0.0), mp.get("GY", 0.0), mp.get("GM", 1.0))
+
+
+def floor_fn(mp):
+    """Đáy hố đào chung: cao độ đáy hố từng trụ, bậc tại tim móng + (FX, FY), mái 1:FM."""
+    lv = {q: pit_of(mp, q)[3] for q in range(1, 5)}
+    return _step_fn(lv, mp.get("FX", 0.0), mp.get("FY", 0.0), mp.get("FM", 0.5))
+
+
+def pit_boxes(mp):
+    """Đáy hố riêng từng trụ: [(x0, x1, y0, y1, cao độ đáy)]."""
+    out = []
+    for q in range(1, 5):
+        x, y, w, zb, _ = pit_of(mp, q)
+        out.append((x - w, x + w, y - w, y + w, zb))
+    return out
+
+
+def pit_surface(mp, joint, m):
+    """Mặt hố đào S(x, y) (đáy + mái 1:m): hố chung = đáy chữ nhật bao các đáy hố riêng (đáy bậc theo floor_fn),
+    hố riêng = thấp nhất của các hố từng trụ."""
+    bx = pit_boxes(mp)
+    if joint:
+        x0, x1 = min(b[0] for b in bx), max(b[1] for b in bx)
+        y0, y1 = min(b[2] for b in bx), max(b[3] for b in bx)
+        F = floor_fn(mp)
+
+        def S(x, y):
+            xc, yc = np.clip(x, x0, x1), np.clip(y, y0, y1)
+            return F(xc, yc) + np.maximum(np.abs(x - xc), np.abs(y - yc)) / m
+        return S
+
+    def S(x, y):
+        out = np.full(np.shape(x), np.inf)
+        for x0, x1, y0, y1, zb in bx:
+            xc, yc = np.clip(x, x0, x1), np.clip(y, y0, y1)
+            out = np.minimum(out, zb + np.maximum(np.abs(x - xc), np.abs(y - yc)) / m)
+        return out
+    return S
+
+
+def uniform(mp) -> bool:
+    """Mặt đất 1 mức và (đào riêng hoặc đáy hố 1 mức): khối lượng đào có công thức chóp cụt."""
+    g = {round(ground(t), 6) for t in mp["TYPES"]}
+    f = {round(z_pit(t), 6) for t in mp["TYPES"]}
+    return len(g) == 1 and (len(f) == 1 or not pit_joint(mp))
+
+
+def vol_dao_num(mp, h=0.02) -> float:
+    """Đào đất theo lưới ô vuông cạnh h: Σ max(0, mặt đất − mặt hố) · h²."""
+    joint = pit_joint(mp)
+    m = mp["SLOPE"]
+    S, G = pit_surface(mp, joint, m), ground_fn(mp)
+    bx = pit_boxes(mp)
+    zmax = max(ground(t) for t in mp["TYPES"])
+    e = m * (zmax - min(b[4] for b in bx)) + h
+    xs = np.arange(min(b[0] for b in bx) - e, max(b[1] for b in bx) + e, h) + h / 2
+    ys = np.arange(min(b[2] for b in bx) - e, max(b[3] for b in bx) + e, h) + h / 2
+    v = 0.0
+    for y in ys:                                   # theo từng hàng (đỡ tốn bộ nhớ)
+        yy = np.full_like(xs, y)
+        v += float(np.maximum(0.0, G(xs, yy) - S(xs, yy)).sum())
+    return v * h * h
+
+
 def vol_dao(mp) -> float:
-    return vol_dao_joint(mp) if pit_joint(mp) else vol_dao_sep(mp)
+    if uniform(mp):
+        return vol_dao_joint(mp) if pit_joint(mp) else vol_dao_sep(mp)
+    return vol_dao_num(mp)
 
 
 def vol_dap(mp) -> float:

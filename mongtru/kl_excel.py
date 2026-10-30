@@ -410,8 +410,9 @@ def _summary(wb, p, rows, rdia, rtot):
         if h.startswith("Diện đền bù"):
             f = f"={L(j - 2)}3*{L(j - 1)}3"
         _cell(ws, 3, j, f, fmt, align=Alignment(horizontal="center", vertical="center"))
-    ws.cell(row=5, column=1, value=f"Khối lượng thép đã gồm {p.get('DP', 0):g}% dự phòng.").font = \
-        Font(italic=True, color="808080")
+    if p.get("DP", 0) > 0:                  # dự phòng = 0: không ghi chú
+        ws.cell(row=5, column=1, value=f"Khối lượng thép đã gồm {p.get('DP', 0):g}% dự phòng.").font = \
+            Font(italic=True, color="808080")
     # kiểm tra: đổi Ø ở THONG SO sang đường kính không có cột ở đây thì tổng các cột Ø lệch tổng thép
     jd = [j for j, (h, _, _) in enumerate(cols, 1) if h.startswith("Ø")]
     jt = next(j for j, (h, _, _) in enumerate(cols, 1) if h.startswith("TỔNG K.LƯỢNG THÉP"))

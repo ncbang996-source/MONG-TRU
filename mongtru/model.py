@@ -60,6 +60,8 @@ def default_params() -> dict:
         # khung tên
         "MABV": "",
         "PIT_DRAW": 0.0,    # trình bày hố đào trên hình: 0 = tự động (theo cách tính), 1 = đào chung, 2 = đào riêng
+        # tỷ lệ từng hình tờ thép (0 = tự động): bố trí thép trụ, thép bản đế, mặt cắt 1-1, lưới đầu trụ
+        "TL_PIER": 0.0, "TL_SLAB": 0.0, "TL_11": 0.0, "TL_MESH": 0.0,
     }
 
 
@@ -337,6 +339,8 @@ def validate(p) -> str | None:
         return "Lớp BT bảo vệ không được âm."
     if p.get("DP", 0) < 0:
         return "Dự phòng thép không được âm."
+    if any(p.get(k, 0) < 0 for k in ("TL_PIER", "TL_SLAB", "TL_11", "TL_MESH")):
+        return "Tỷ lệ hình phải > 0 (để trống = tự động)."
     return None
 
 

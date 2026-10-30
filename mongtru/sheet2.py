@@ -36,6 +36,29 @@ def pier_scale(g: Geo):
     return 50
 
 
+def _ov(g: Geo, key, auto):
+    """Tỷ lệ người dùng nhập cho từng hình (ô mục 4. Bản vẽ), 0 / trống = tự động."""
+    v = g.p.get(key) or 0
+    return int(v + 0.5) if v > 0 else auto
+
+
+def pier_den(g: Geo):
+    """Tỷ lệ hình bố trí thép trụ (ghi ở khung tên tờ thép)."""
+    return _ov(g, "TL_PIER", det_scale(g))
+
+
+def slab_den(g: Geo):
+    return _ov(g, "TL_SLAB", det_scale(g))
+
+
+def sec_den(g: Geo):
+    return _ov(g, "TL_11", pier_scale(g))
+
+
+def mesh_den(g: Geo):
+    return _ov(g, "TL_MESH", pier_scale(g))
+
+
 def sc_title(c: Ctx, x, y, s, den):
     title(c, x, y, s, f"TL:1/{den}")
 
@@ -45,7 +68,7 @@ def pier_section(c: Ctx, g: Geo, co: Callouts, cx, ytop):
     """Bố trí thép trụ: mặt cắt qua tim bản đế 1 trụ (theo X), z = 0 tại đáy bản đế. Trả về v.
     Mặt vát của cổ móng (phía ngoài) thể hiện bên trái, mặt thẳng đứng (phía tim móng) bên phải."""
     p = g.p
-    den = det_scale(g)
+    den = pier_den(g)
     k = 1000.0 / den
     v = V(c, cx, ytop - 14.0 - k * g.H, den)
     pad_aa(v, g, 0.0, so=-1)
@@ -172,7 +195,10 @@ def pier_section(c: Ctx, g: Geo, co: Callouts, cx, ytop):
             balloon(c, xb + 6.6 * i, y5, g.sq(q))
     # 8: lưới đầu trụ
     zl = g.mesh_zs()
-    co([v.P(tc + hl, zl[0]), v.P(tc + hl - 0.05, zl[min(1, len(zl) - 1)] - p["RL_D"] / 1000.0)], xp,
+    # chỉ vào chấm tròn (thanh lưới thấy mặt cắt) của 2 lớp trên cùng, thanh thứ 2 từ phải
+    xd = v.x(tc - hl + (nd - 1) * 2 * hl / nd)
+    tg = [(xd, v.y(z) - 0.35 - rl - 0.3) for z in zl[:2]]
+    co(tg, xp,
        v.y(z1) + 2.0, 1, 8,
        T_MESH, phi(p["RL_D"], p["RL_S"]), tick=False)
     # ký hiệu mặt cắt 1-1 trên cổ móng
@@ -251,14 +277,15 @@ def slab_plan(c: Ctx, g: Geo, co: Callouts, cx, cy, den):
     xq = -0.5 * x1_
     co([v.P(xq, y2)], xl, v.y(y2) + 4.0, -1, 2, phi(p["RB_TOP_D"], p["RB_TOP_S"]), mode=True)
     yb = v.y(-B - model.ML)
-    c.txj("CHU", v.x(-0.5 * B), yb - 5.0, 2.5, T_TOP, 1, underline=True)
-    c.txj("CHU", v.x(0.5 * B), yb - 5.0, 2.5, T_BOT, 1, underline=True)
+    yt = v.y(B + model.ML) + 2.0                        # tên lớp ghi phía trên hình, dưới đường kích thước
+    c.txj("CHU", v.x(-0.5 * B), yt, 2.5, T_TOP, 1, underline=True)
+    c.txj("CHU", v.x(0.5 * B), yt, 2.5, T_BOT, 1, underline=True)
     w100 = txtw("100", 2.0)
     v.dimH((-B, B), (B, B), v.y(B + model.ML) + 8.0)
     yy = v.y(B + model.ML) + 8.0
     for s in (-1, 1):
         v.dimH((s * B, B), (s * (B + model.ML), B + model.ML), yy, (v.x(s * (B + model.ML)) + s * (1.0 + w100 / 2), yy + 2.0))
-    sc_title(c, cx, yb - 16.0, "THÉP BẢN ĐẾ", den)
+    sc_title(c, cx, yb - 9.0, "THÉP BẢN ĐẾ", den)
 
 
 # ---------------------------------------------------------------------------
@@ -271,7 +298,7 @@ def col_section(c: Ctx, g: Geo, co: Callouts, cx, cy):
     """1-1: mặt cắt ngang cổ móng tại cao độ cắt (thép chủ, đai, đai bát giác, đai phụ). (cx, cy): tim tiết diện.
     Cổ vát: thấy thêm đường bao chân cổ b2 và cạnh vát; mặt đứng (phía tim móng) bên phải và phía trên."""
     p = g.p
-    den = pier_scale(g)
+    den = sec_den(g)
     kk, cov = 1000.0 / den, p["COVER"]
     bs = g.b1                                          # cắt sát đỉnh cổ: tiết diện b1
     hh = kk * bs / 2
@@ -373,7 +400,7 @@ def col_section(c: Ctx, g: Geo, co: Callouts, cx, cy):
 
 def mesh(c: Ctx, g: Geo, co: Callouts, cx, cy):
     p = g.p
-    den = pier_scale(g)
+    den = mesh_den(g)
     kk = 1000.0 / den
     hh = kk * g.bb / 2
     c.rect("MAIN", cx - hh, cy - hh, cx + hh, cy + hh)
@@ -398,14 +425,14 @@ def draw(c: Ctx, g: Geo):
         g.calc_kl()
     tkkt = model.is_tkkt(g.p)               # TKKT: không có bảng thép, tag không ghi số hiệu
     co = Callouts(c, g, nonum=tkkt)
-    den = det_scale(g)
-    k = 1000.0 / den
+    k = 1000.0 / pier_den(g)
+    ks = 1000.0 / slab_den(g)
     cx = 125.0 if tkkt else 95.0
     with c.group("pier", "Bố trí thép trụ"):
         pier_section(c, g, co, cx, 276.0)
     ytop = 276.0 - 14.0 - k * (model.TL + 0.0) - 28.0 - k * g.H
     with c.group("plan", "Thép bản đế"):
-        slab_plan(c, g, co, cx, ytop - 10.0 - k * (g.Bh + model.ML), den)
+        slab_plan(c, g, co, cx, ytop - 10.0 - ks * (g.Bh + model.ML), slab_den(g))
     xm, y11, ym, hp, ex = right_layout(g, tkkt)
     with c.group("sec11", "Mặt cắt 1-1"):
         col_section(c, g, co, xm + ex / 2, y11)
@@ -444,8 +471,8 @@ def bar_list(g: Geo):
 
 def right_layout(g: Geo, tkkt=False):
     """Vị trí mặt cắt 1-1 và lưới đầu trụ: (xm, y11, ym, hp, ex)."""
-    kk = 1000.0 / pier_scale(g)
-    hp = kk * g.bb / 2                                  # nửa lưới đầu trụ
+    kk = 1000.0 / sec_den(g)
+    hp = 1000.0 / mesh_den(g) * g.bb / 2                # nửa lưới đầu trụ
     hs = kk * g.b1 / 2                                  # nửa tiết diện 1-1
     ex = kk * g.b2 - 2 * hs if g.tp > 1e-6 else 0.0     # đường bao chân cổ lòi ra trái / dưới
     xm = 285.0 if tkkt else 205.0

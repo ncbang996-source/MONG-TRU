@@ -20,3 +20,10 @@ nhánh này; lấy lại đúng mã nguồn lúc đó: `git checkout ban-on-dinh
     "BẢNG KÍCH THƯỚC TỪNG THANH XEM TỜ ..." lấy số tờ từ `g.tables_ref` (mặc định "3/3").
   - `mongtru/ui3d.py`: thông số có khoá "TYPES" thì dựng mô hình 3D móng 2 loại.
   - `app.py`: nhận dạng file Excel móng 2 loại và các nhánh của chế độ 2 loại (ô loại đang sửa, vị trí trụ, cao độ).
+
+## Thay đổi định dạng đã được người dùng yêu cầu (cmt_TRU_LECH_1) - đã ghi lại mẫu golden
+- Bu lông neo vẽ theo kích thước thật theo tỷ lệ (`view.bolt_side`).
+- Chữ "LỚP TRÊN / LỚP DƯỚI" của hình thép bản đế ghi phía trên hình.
+- Tag lưới thép đầu trụ chỉ vào chấm tròn (thanh lưới thấy mặt cắt).
+- Excel: dự phòng thép = 0 thì không ghi chú "đã gồm dự phòng".
+- Thêm tỷ lệ từng hình tờ thép (`TL_PIER`, `TL_SLAB`, `TL_11`, `TL_MESH`, 0 = tự động như cũ).

@@ -13,10 +13,13 @@ App Windows chạy offline, vẽ nhanh bản vẽ **móng trụ rời 4 trụ** 
     - Tờ 2/2: bố trí thép trụ, thép bản đế (nửa trái lớp trên, nửa phải lớp dưới), mặt cắt cổ móng 1-1, lưới thép đầu trụ, bảng thống kê cốt thép, bảng kích thước từng thanh (thép lớp trên, thanh chống; cổ móng vát thêm thép chủ cổ, đai, đai bát giác, đai phụ).
     - Bảng kích thước từng thanh không đủ chỗ ở khoảng giữa tờ 2 (thường gặp khi cổ móng vát): nếu tờ 1 còn chỗ dưới bảng tổng kê thì đưa bảng thống kê cốt thép sang tờ 1 (tờ 2 ghi chú "BẢNG THỐNG KÊ CỐT THÉP XEM TỜ 1/2"), các bảng kích thước xếp vào khoảng giữa và cột phải tờ 2. Vẫn không đủ thì mới chuyển hết bảng kích thước sang tờ 3/3 (tờ 2 ghi chú "BẢNG KÍCH THƯỚC TỪNG THANH XEM TỜ 3/3").
     - TKKT: chỉ 2 tờ, tờ 2/2 không có bảng thống kê cốt thép và bảng kích thước từng thanh, tag thép không ghi số hiệu (giữ Ø/@ và tên thép). Excel khối lượng xuất bình thường.
+  - Tỷ lệ từng hình tờ thép (mục 4. Bản vẽ): bố trí thép trụ, thép bản đế, mặt cắt 1-1, lưới thép đầu trụ - chọn trong danh sách hoặc gõ số, "Tự động" = chương trình chọn. Khung tên ghi tỷ lệ hình bố trí thép trụ.
+  - Bu lông neo vẽ theo kích thước thật (thân Ø, vòng đệm, đai ốc) theo tỷ lệ hình.
   - Tỷ lệ tờ 1 tự chọn: tỷ lệ lớn nhất trong danh sách (1/50 … 1/250) vẽ được đúng tỷ lệ. Chỉ khi 1/250 vẫn không đủ chỗ (hoặc người dùng chọn tỷ lệ lớn hơn mức vừa khổ giấy) thì thu gọn khoảng cách giữa các trụ trên hình, chữ kích thước vẫn ghi giá trị thật.
   - Trình bày hố đào (ô dưới "Mở rộng đáy hố đào"): Tự động / Đào chung 1 hố / Đào riêng từng trụ. Chỉ đổi hình vẽ (mái tượng trưng 1:0,5), không đổi khối lượng.
 - **Xuất file:** PDF A3, AutoCAD DXF, Excel khối lượng (`_KL.xlsx`, gồm các sheet TONG KE, THONG SO, KHOI LUONG). Tên file xuất trùng tên file Excel. Trong Excel, Ø, chiều dài và số lượng từng vị trí thép đều là công thức theo thông số (sheet THONG SO), có diễn giải: sửa thông số thì khối lượng tự tính lại.
 - **Mô hình 3D:** tab riêng, bê tông trong suốt, bật/tắt từng nhóm thép, xem toàn móng hoặc 1 trụ.
+- **Giao diện:** cửa sổ hẹp thì thanh nút tự xuống dòng; icon app hiện đúng ở thanh taskbar.
 - **Sắp xếp (kéo thả):** nhấp chọn rồi kéo, hoặc dùng phím mũi tên (1 mm, giữ Shift: 5 mm). Ctrl+Z / Ctrl+Y hoàn tác / làm lại. Vị trí lưu vào `<tên Excel>.layout.json`.
 
 ## Ô đọc từ sheet TONG HOP
@@ -60,12 +63,13 @@ Mở file Excel có 2 khối "Móng:" ở sheet `TONG HOP` (mẫu `samples/N112-
 - **Ô đọc:** khối loại 1 như hình mẫu trong Excel (B8 tên móng, B10..B17 kích thước, C21/D21 bu lông, C23/C24 lớp bảo vệ, H22..I29 thép, K29 số lớp lưới, B26.. vị trí trụ, C27 cao độ thiết kế); khối loại 2 cùng cột, lùi xuống 22 dòng (B30 ...). Dùng chung: B4, C4, C5, C6, J4..J7, K7, hệ số mở mái C19, mở rộng đáy hố C20, dự phòng thép H52. Ô của loại 2 trống / lỗi thì lấy theo loại 1 (có cảnh báo).
 - **Vị trí trụ:** 1 trái trên, 2 phải trên, 3 trái dưới, 4 phải dưới (như hình trong Excel). Bt là khoảng cách tim đỉnh trụ; tim bản đế mỗi loại lệch theo b2 − b1 của loại đó.
 - **Cao độ:** cao độ thiết kế = mặt đất tại trụ; đỉnh cổ móng = cao độ thiết kế + d; đáy bản đế = cao độ thiết kế − Hm.
+- **Hạ cao độ mặt đất** (2 loại khác cao độ thiết kế): vùng các trụ cao ở mức cao, mép trên chỗ hạ đặt tại tim móng + (x, y) (ô "Hạ cao độ mặt đất: x / y (m), mái 1:"), mái 1:m tới mức thấp. **Bậc đáy hố đào chung** (đào chung, đáy 2 mức): tương tự, ô "Bậc đáy hố chung" (mặc định tại tim móng, mái 1:0,5); bậc cắt vào đáy hố trụ nào thì có cảnh báo. Cả 2 đều tính vào khối lượng đào / đắp (tính số trên lưới 2 cm, trùng công thức chóp cụt khi mặt đất / đáy 1 mức) và thể hiện trên mặt cắt A-A (nét hố nối vào mặt đất) và mặt bằng (mép trên nét liền, chân mái nét đứt).
 - **Giao diện:** thêm ô "Loại móng đang sửa" (các ô kích thước, thép, bu lông hiện số liệu của loại đang chọn), "Vị trí trụ" (loại kia tự nhận các vị trí còn lại), "Cao độ thiết kế".
 - **Bản vẽ:**
   - Tờ 1: mặt cắt A-A qua 2 trụ khác loại (cùng hàng; nếu 2 hàng đều cùng loại thì cắt theo cột), mỗi trụ theo cao độ riêng: mặt đất 2 mức nối bằng mái 1:1 qua trục tim móng, kích thước và cao độ trụ trái ở bên trái, trụ phải ở bên phải. Mặt bằng ghi tên loại trong từng bản đế, kích thước cổ móng trên 1 trụ mỗi loại. Bảng tổng kê cho cả vị trí móng (bu lông gộp theo đường kính).
   - TKBVTC / TKKT: mỗi loại 1 tờ cốt thép (vẽ như tờ 2 bản 4 trụ giống nhau, số lượng thép theo số trụ của loại). Bảng kích thước từng thanh không đủ chỗ thì thêm tờ ngay sau tờ thép của loại đó (không đưa bảng thống kê thép sang tờ 1).
 - **Khối lượng:** bê tông, lót, ván khuôn, thép = cộng 2 loại. Đào: mỗi trụ hố từ đáy lót lên mặt đất tại trụ đó; miệng hố 2 trụ cạnh nhau chạm nhau thì đào chung 1 hố, đáy bậc theo độ sâu từng trụ (tính theo lát cắt: tại mỗi cao độ, hố chung là hình chữ nhật bao các hố riêng có ở cao độ đó). Đắp = đào − lót − phần bê tông dưới mặt đất. Đền bù: Bt + max(b2 − b1 + Bm) + 1.
-- **Excel khối lượng:** sheet THONG SO 1 / KHOI LUONG 1 (loại 1), THONG SO 2 / KHOI LUONG 2 (loại 2) như file của bản 4 trụ giống nhau; sheet DAT (đào / đắp cả vị trí: công thức khi đào riêng, giá trị do chương trình tính khi đào chung đáy bậc - sửa thông số thì xuất lại); sheet TONG KE cho cả vị trí móng.
+- **Excel khối lượng:** sheet THONG SO 1 / KHOI LUONG 1 (loại 1), THONG SO 2 / KHOI LUONG 2 (loại 2) như file của bản 4 trụ giống nhau; sheet DAT (đào / đắp cả vị trí: công thức khi đào riêng và mặt đất 1 mức, còn lại là giá trị do chương trình tính - sửa thông số thì xuất lại); sheet TONG KE cho cả vị trí móng.
 - **3D:** 4 trụ đúng loại và cao độ.
 
 ## Tải file .exe
