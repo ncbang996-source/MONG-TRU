@@ -104,12 +104,14 @@ TL_FIELDS = [("TL_PIER", "Bố trí thép trụ 1/"), ("TL_SLAB", "Thép bản �
 TL_AUTO = "Tự động"
 TL_VALUES = [TL_AUTO, "10", "15", "20", "25", "30", "40", "50", "60", "75", "100", "125"]
 
-# bảng màu giao diện
+# bảng màu giao diện - cảm hứng Yamaha XSR155: bình xăng bạc, yên da nâu, khung đen nhám, đèn hậu đỏ
+# (tên khoá giữ nguyên để các màn hình khác dùng chung: navy = đen nhám, blue = nâu da, green = xám than)
 C = {
-    "navy": "#1F3A5F", "blue": "#2E75B6", "green": "#2E8B57", "orange": "#F28C28", "red": "#C62828",
-    "bg": "#EEF3F9", "bar": "#E2EBF6", "card": "#FFFFFF", "line": "#C3D2E4", "text": "#1E2A38",
-    "muted": "#5B6B80", "stage": "#3C4B5C",
-    "sections": ["#2E75B6", "#138D90", "#D9822B", "#7B5EA7", "#2E8B57"],
+    "navy": "#1E1F22", "blue": "#8B5A33", "green": "#34373C", "orange": "#C98F5A", "red": "#C8202B",
+    "bg": "#E3E5E8", "bar": "#D3D6DA", "card": "#F7F7F8", "line": "#B3B7BD", "text": "#1E1F22",
+    "muted": "#5F646B", "stage": "#2B2D31",
+    "silver": "#C4C7CC", "chrome": "#E9EAEC", "stitch": "#D9A56B", "seat": "#6B4423",
+    "sections": ["#7A4B28", "#3A3E44", "#946036", "#4F545B", "#6B4423"],
 }
 
 
@@ -203,16 +205,17 @@ class App(tk.Tk):
         st.configure("Info2.TLabel", background=C["card"], foreground=C["blue"], font=fb)
         st.configure("Err.TLabel", background=C["card"], foreground=C["red"])
         st.configure("Sub.TLabel", background=C["card"], foreground=C["muted"])
-        for nm, bg, fg, hov in (("Tool", "#FFFFFF", C["navy"], "#DCE9F7"),
-                                ("Primary", C["blue"], "#FFFFFF", "#245E93"),
-                                ("Export", C["green"], "#FFFFFF", "#22704A"),
-                                ("Small", C["bar"], C["navy"], "#C9DAEE")):
-            st.configure(f"{nm}.TButton", background=bg, foreground=fg, bordercolor=C["line"],
+        for nm, bg, fg, hov in (("Tool", C["chrome"], C["navy"], "#F6F6F7"),
+                                ("Primary", C["blue"], "#FFFFFF", "#6E4222"),
+                                ("Export", C["green"], "#F1F2F3", C["blue"]),
+                                ("Small", C["bar"], C["navy"], "#C2C6CB")):
+            st.configure(f"{nm}.TButton", background=bg, foreground=fg, bordercolor=C["silver"] if nm == "Tool" else (C["seat"] if nm == "Primary" else C["line"]),
                          lightcolor=bg, darkcolor=bg, focuscolor=bg, padding=(10, 5) if nm != "Small" else (6, 2),
                          font=fb if nm in ("Primary", "Export") else f, relief="flat")
             st.map(f"{nm}.TButton", background=[("pressed", hov), ("active", hov)],
                    lightcolor=[("active", hov)], darkcolor=[("active", hov)])
-        st.configure("TEntry", fieldbackground="#FFFFFF", bordercolor=C["line"], lightcolor=C["line"], padding=3)
+        st.configure("TEntry", fieldbackground="#FFFFFF", bordercolor=C["line"], lightcolor=C["line"], padding=3,
+                     selectbackground=C["blue"], selectforeground="#FFFFFF")
         st.map("TEntry", bordercolor=[("focus", C["blue"])], lightcolor=[("focus", C["blue"])])
         st.configure("TCombobox", fieldbackground="#FFFFFF", bordercolor=C["line"], lightcolor=C["line"],
                      arrowcolor=C["blue"], padding=2)
@@ -223,7 +226,8 @@ class App(tk.Tk):
         st.configure("TNotebook", background=C["card"], bordercolor=C["line"], tabmargins=(6, 6, 6, 0))
         st.configure("TNotebook.Tab", background=C["bar"], foreground=C["muted"], padding=(10, 4), font=fb,
                      bordercolor=C["line"])
-        st.map("TNotebook.Tab", background=[("selected", "#FFFFFF")], foreground=[("selected", C["blue"])])
+        st.map("TNotebook.Tab", background=[("selected", C["card"]), ("active", C["chrome"])],
+               foreground=[("selected", C["blue"])])
         st.configure("TRadiobutton", background=C["card"])
         st.configure("TCheckbutton", background=C["card"])
         return f, fb
@@ -246,10 +250,14 @@ class App(tk.Tk):
         tk.Label(tt, text=APP_NAME, background=C["navy"], foreground="#FFFFFF",
                  font=(f[0], f[1] + 5, "bold")).pack(anchor="w")
         tk.Label(tt, text=f"{APP_DESC}  •  Excel → PDF / AutoCAD DXF / Excel khối lượng",
-                 background=C["navy"], foreground="#A9C7EA", font=(f[0], f[1] - 1)).pack(anchor="w")
-        tk.Label(hdr, text=f"phiên bản {APP_VER}", background=C["navy"], foreground="#7FA3CC",
+                 background=C["navy"], foreground=C["silver"], font=(f[0], f[1] - 1)).pack(anchor="w")
+        tk.Label(hdr, text=f"phiên bản {APP_VER}", background=C["navy"], foreground="#9A9EA5",
                  font=(f[0], f[1] - 1)).pack(side="right", padx=14)
-        tk.Frame(self, background=C["orange"], height=3).pack(side="top", fill="x")
+        # đường may chỉ nổi trên yên da nâu
+        stitch = tk.Canvas(self, height=6, background=C["seat"], highlightthickness=0)
+        stitch.pack(side="top", fill="x")
+        stitch.bind("<Configure>", lambda e: (stitch.delete("all"),
+                                              stitch.create_line(0, 3, e.width, 3, fill=C["stitch"], dash=(7, 4), width=2)))
 
         # thanh công cụ chia nhóm
         bar = ttk.Frame(self, style="Bar.TFrame", height=70)
@@ -383,11 +391,11 @@ class App(tk.Tk):
 
         st = tk.Frame(self, background=C["navy"])
         st.pack(side="bottom", fill="x", before=pw)
-        self._cr = tk.Label(st, text=_meta.credit(), background=C["navy"], foreground="#F2B36B",
+        self._cr = tk.Label(st, text=_meta.credit(), background=C["navy"], foreground=C["stitch"],
                             font=(f[0], f[1] - 1, "bold"), padx=10, pady=3)
         self._cr.pack(side="left")
-        tk.Frame(st, background="#3E5C82", width=1).pack(side="left", fill="y", pady=3)
-        self.l_msg = tk.Label(st, text=APP_DESC, background=C["navy"], foreground="#E3ECF7", anchor="w",
+        tk.Frame(st, background="#4B4E54", width=1).pack(side="left", fill="y", pady=3)
+        self.l_msg = tk.Label(st, text=APP_DESC, background=C["navy"], foreground="#D6D8DC", anchor="w",
                               font=(f[0], f[1] - 1), padx=10, pady=3)
         self.l_msg.pack(side="left", fill="x")
 
@@ -925,7 +933,7 @@ class App(tk.Tk):
         cw, ch = self.pv.winfo_width(), self.pv.winfo_height()
         x0 = max(10, (cw - w) // 2)
         y0 = max(10, (ch - h) // 2)
-        self.pv.create_rectangle(x0 + 4, y0 + 4, x0 + w + 4, y0 + h + 4, fill="#232E3A", outline="", tags="bg")
+        self.pv.create_rectangle(x0 + 4, y0 + 4, x0 + w + 4, y0 + h + 4, fill="#101114", outline="", tags="bg")
         self.pv.create_rectangle(x0, y0, x0 + w, y0 + h, fill="#FFFFFF", outline="", tags="bg")
         self.pv.configure(scrollregion=(0, 0, max(cw, w + 20), max(ch, h + 20)))
         self._geom = (x0, y0, w / export.PAGE_W)
