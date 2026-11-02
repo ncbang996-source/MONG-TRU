@@ -71,8 +71,8 @@ def build(mp: dict, frame_path: str | None = None, fields: dict | None = None, o
         origins.append((ox, 0.0))
         n0 = len(msp)
         den = den1 if kind == "s1" else sheet2.pier_den(gs[i])
-        frame.place(doc, ox, 0.0, title_values(mp, den, kind, i, j + 1, nsheet), fields, tags)
         c = Ctx(doc, msp, ox, 0.0, den1, offsets, f"s{j + 1}")
+        frame.place(doc, ox, 0.0, title_values(mp, den, kind, i, j + 1, nsheet), fields, tags, c)
         if kind == "s1":
             ls1.draw(c, mp, gs)
         elif kind == "steel":

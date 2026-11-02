@@ -313,8 +313,23 @@ def match_tag(tags, field):
     return None
 
 
-def place(doc, ox, oy, values: dict, fields: dict, tags: set):
-    """Chèn khung tên tại (ox, oy) và điền thông tin."""
+MOVABLE = {"TL": "Tỷ lệ (khung tên)", "TO": "Số tờ (khung tên)"}
+
+
+def _movable(c, f, x, y, w, h, align):
+    """Ô TL / TỜ: 1 đối tượng kéo được trên tờ (Ctx c, toạ độ trong khung) -> điểm đặt chữ đã cộng offset."""
+    if c is None or f not in MOVABLE:
+        return None
+    x0 = x - {"L": 0.0, "C": w / 2, "MC": w / 2, "R": w}.get(align, 0.0)
+    y0 = y - (h / 2 if align == "MC" else 0.0)
+    with c.item(f.lower(), MOVABLE[f]):
+        c.wp(x0, y0 - 0.3 * h)
+        c.wp(x0 + w, y0 + h)
+        return c.wp(x, y)
+
+
+def place(doc, ox, oy, values: dict, fields: dict, tags: set, c=None):
+    """Chèn khung tên tại (ox, oy) và điền thông tin. c: Ctx của tờ -> ô tỷ lệ, số tờ kéo dịch được."""
     msp = doc.modelspace()
     ins = msp.add_blockref(BLOCK, (ox, oy), dxfattribs={"layer": "0"})
     if tags:
@@ -330,9 +345,11 @@ def place(doc, ox, oy, values: dict, fields: dict, tags: set):
     done = {f for f in values if tags and match_tag(tags, f)}
     for f, a in getattr(tags, "auto", {}).items():
         if f in values and f not in done:
-            t = msp.add_text(a["label"] + str(values[f]), height=a["h"],
+            s_ = a["label"] + str(values[f])
+            t = msp.add_text(s_, height=a["h"],
                              dxfattribs={"layer": a["layer"], "style": a["style"], "width": a["width"]})
-            t.set_placement((ox + a["x"], oy + a["y"]))
+            w = cad.txtw(s_, a["h"]) * a["width"] / cad.WIDTH
+            t.set_placement(_movable(c, f, a["x"], a["y"], w, a["h"], "L") or (ox + a["x"], oy + a["y"]))
             done.add(f)
     for f, v in values.items():
         if f in done or f not in fields or not v:
@@ -344,8 +361,11 @@ def place(doc, ox, oy, values: dict, fields: dict, tags: set):
         wmax = float(cfg.get("wmax", 0) or 0)
         if wmax and w > wmax:
             h *= wmax / w
+            w = wmax
         from ezdxf.enums import TextEntityAlignment as A
-        al = {"MC": A.MIDDLE_CENTER, "L": A.LEFT, "C": A.CENTER, "R": A.RIGHT}.get(cfg.get("align", "L"), A.LEFT)
+        ak = cfg.get("align", "L")
+        al = {"MC": A.MIDDLE_CENTER, "L": A.LEFT, "C": A.CENTER, "R": A.RIGHT}.get(ak, A.LEFT)
         t = msp.add_text(v, height=h, dxfattribs={"layer": "CHU", "style": cad.STYLE_B if bold else cad.STYLE, "width": cad.WIDTH})
-        t.set_placement((ox + float(cfg["x"]), oy + float(cfg["y"])), align=al)
+        x, y = float(cfg["x"]), float(cfg["y"])
+        t.set_placement(_movable(c, f, x, y, w, h, ak) or (ox + x, oy + y), align=al)
     return ins

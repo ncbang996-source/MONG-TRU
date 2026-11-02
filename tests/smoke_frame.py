@@ -53,4 +53,15 @@ from ezdxf.fonts import fonts  # noqa: E402
 for fam, w, want in (("Roboto Condensed", 700, cad.FONT_B), ("Roboto", 400, "Roboto-Regular.ttf"),
                      ("Roboto SemiBold", 400, "Roboto-Bold.ttf")):
     assert fonts.find_font_file_name(fonts.FontFace(family=fam, weight=w)) == want, fam
+# PDF: chữ là chữ thật (chọn / sửa được), đúng chỗ; ô tỷ lệ, số tờ kéo dịch được
+import pymupdf  # noqa: E402
+r = export.build(p, fp, fl)
+pg = pymupdf.open("pdf", export.pdf_bytes(r, only={0}))[0]
+words = pg.get_text("words")
+assert any(w[4] == "MẶT" for w in words) and any(w[4] == "1/100" or w[4].endswith("1/50") for w in words), words[:20]
+ids = {o.id for o in r.objs[0]}
+assert {"s1.tl", "s1.to"} <= ids, ids
+pos = lambda r: [(t.dxf.insert.x, t.dxf.insert.y) for t in r.doc.modelspace().query("TEXT") if t.dxf.text.startswith("TL: ")][0]
+(x0, y0), (x1, y1) = pos(r), pos(export.build(p, fp, fl, {"s1.tl": (4.0, 2.0)}))
+assert abs(x1 - x0 - 4.0) < 1e-6 and abs(y1 - y0 - 2.0) < 1e-6
 print("OK - khung ten")
