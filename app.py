@@ -1299,15 +1299,41 @@ class FieldsDialog(tk.Toplevel):
             bv = tk.BooleanVar(value=bool(cfg.get("bold")))
             ttk.Checkbutton(f, variable=bv).grid(row=i + 2, column=len(self.COLS) + 1)
             self.v[(k, "bold")] = bv
+        # logo: file ảnh + ô đặt (khung có logo OLE nhưng file DXF không lưu dữ liệu ảnh)
+        lg = frame.logo_cfg(app.fields)
+        r0 = len(frame.FIELD_LABELS) + 2
+        ttk.Separator(f).grid(row=r0, column=0, columnspan=8, sticky="ew", pady=(8, 4))
+        ttk.Label(f, text="Logo (ảnh PNG/JPG; \"Logo SEIAC\" = logo kèm chương trình) - dùng khi file khung DXF không "
+                          "lưu ảnh logo; để trống = không chèn",
+                  wraplength=560, justify="left").grid(row=r0 + 1, column=0, columnspan=8, sticky="w")
+        self.v_logo = tk.StringVar(value=lg.get("file") or "")
+        ttk.Entry(f, textvariable=self.v_logo, width=48).grid(row=r0 + 2, column=0, columnspan=5, sticky="w")
+        ttk.Button(f, text="Chọn...", command=self.pick_logo).grid(row=r0 + 2, column=5, sticky="w")
+        ttk.Button(f, text="Logo SEIAC", command=lambda: self.v_logo.set(frame.LOGO_BUILTIN)).grid(
+            row=r0 + 2, column=6, columnspan=2, sticky="w")
+        ttk.Label(f, text="Ô đặt logo x0, y0, x1, y1 (mm)").grid(row=r0 + 3, column=0, sticky="w")
+        self.v_rect = []
+        for j, val in enumerate(lg["rect"]):
+            var = tk.StringVar(value=f"{float(val):g}")
+            ttk.Entry(f, textvariable=var, width=8).grid(row=r0 + 3, column=j + 1, padx=2, pady=1)
+            self.v_rect.append(var)
         bf = ttk.Frame(f)
         bf.grid(row=20, column=0, columnspan=8, sticky="e", pady=(10, 0))
         ttk.Button(bf, text="Mặc định", command=self.reset).pack(side="left")
         ttk.Button(bf, text="Lưu", command=self.ok).pack(side="left", padx=6)
         ttk.Button(bf, text="Huỷ", command=self.destroy).pack(side="left")
 
+    def pick_logo(self):
+        f = filedialog.askopenfilename(parent=self, title="Chọn ảnh logo",
+                                       filetypes=[("Ảnh", "*.png *.jpg *.jpeg *.bmp"), ("Tất cả", "*.*")])
+        if f:
+            self.v_logo.set(f)
+
     def reset(self):
         for (k, c), var in self.v.items():
             var.set(frame.DEFAULT_FIELDS[k].get(c, "") if c != "bold" else bool(frame.DEFAULT_FIELDS[k].get("bold")))
+        for var, val in zip(self.v_rect, frame.DEFAULT_LOGO["rect"]):
+            var.set(f"{val:g}")
 
     def ok(self):
         out = copy.deepcopy(self.app.fields)
@@ -1320,8 +1346,13 @@ class FieldsDialog(tk.Toplevel):
                     cfg[c] = var.get().strip().upper() or "L"
                 else:
                     cfg[c] = float(var.get().replace(",", "."))
+            out["LOGO"] = {"file": self.v_logo.get().strip(),
+                           "rect": [float(v.get().replace(",", ".")) for v in self.v_rect]}
         except ValueError:
             messagebox.showerror(APP_NAME, "Toạ độ / chiều cao phải là số.", parent=self)
+            return
+        if out["LOGO"]["file"] and not frame.logo_png(out):
+            messagebox.showerror(APP_NAME, "Không đọc được file ảnh logo.", parent=self)
             return
         self.app.fields = out
         self.app._bump()

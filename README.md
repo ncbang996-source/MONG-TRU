@@ -6,6 +6,9 @@ App Windows chạy offline, vẽ nhanh bản vẽ **móng trụ rời 4 trụ** 
 - **Đọc Excel:** lấy số liệu từ sheet `TONG HOP` (các ô liệt kê bên dưới). Đọc được cả `.xls` và `.xlsx` / `.xlsm`. Mỗi lần mở file, mọi thông số và lựa chọn (kể cả trình bày hố đào) về mặc định rồi mới đọc file (ô trống không giữ số của file trước, có cảnh báo). Tỷ lệ tờ 1 luôn tự chọn lại.
 - **Hiệu chỉnh:** sửa mọi thông số trên giao diện. App kiểm tra số liệu và cập nhật khối lượng; khi đang gõ, thông báo lỗi chờ khoảng 1,2 s sau lần gõ cuối mới hiện.
 - **Khung tên:** mặc định dùng `assets/frames/KT-A3.dxf` (block KHUNG_TEN). App điền attribute nếu có, nếu không thì điền theo toạ độ. Logo OLE được chèn vào PDF.
+  - Khung khác mẫu (vd khung NMĐG Hướng Phùng 7): nếu khung có sẵn chữ nhãn "TL:" / "TỜ:" mà ô cấu hình đè lên nhãn thì app ghi "TL: 1/..", "TỜ: ../.." ngay tại nhãn (cùng kiểu chữ, cỡ chữ). Chữ giai đoạn (TKCS, TKBVTC, TKKT...) trong khung thay theo ô Giai đoạn thiết kế.
+  - Logo: file DXF chỉ giữ được logo nếu ảnh OLE được lưu trong file (khung KT-A3 có, khung Hướng Phùng 7 xuất DXF bị mất dữ liệu ảnh). Khi khung không có ảnh: ⚙ Cấu hình... > Logo: chọn file ảnh hoặc "Logo SEIAC" (logo kèm chương trình, trích từ KT-A3), ô đặt logo x0, y0, x1, y1 (mm, mặc định chỗ logo của khung SEIAC). PDF chèn ảnh; DXF chèn IMAGE, file ảnh được chép cạnh file DXF.
+  - Chữ MTEXT của khung gọi font theo họ Roboto (`\fRoboto Condensed|b1`...) luôn vẽ bằng font Roboto tĩnh kèm chương trình (font Roboto bản variable cài trên máy làm chữ PDF bị chấm trắng).
 - **Bản vẽ:**
   - TKCS có 1 tờ: mặt cắt A-A (qua 2 trụ, hố đào, cao độ), mặt bằng móng 4 trụ, bảng tổng kê.
   - TKBVTC và TKKT có 2 tờ.

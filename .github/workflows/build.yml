@@ -17,6 +17,8 @@ jobs:
         run: pip install -r requirements.txt
       - name: Kiểm tra dựng bản vẽ mẫu
         run: python tests/smoke.py
+      - name: Kiểm tra khung tên
+        run: python tests/smoke_frame.py
       - name: Đóng gói exe
         run: pyinstaller --noconfirm VE_MONGTRU.spec
       - uses: actions/upload-artifact@v4

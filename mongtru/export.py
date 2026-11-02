@@ -73,12 +73,28 @@ def build(p: dict, frame_path: str | None = None, fields: dict | None = None, of
         sheet2.draw3(c3, g)
         handles.append({e.dxf.handle for e in list(msp)[n0:]})
         objs.append(c3.objs)
-    ole = frame.ole_images(frame_path) if frame_path else []
+    ole = frame.pdf_images(frame_path, fields)
     return Result(doc, g, origins, ole, handles, objs)
 
 
 def save_dxf(res: Result, path: str):
-    res.doc.saveas(path)
+    # logo (IMAGE tham chiếu file ngoài): chép ảnh cạnh file DXF, tham chiếu theo tên file (AutoCAD tìm cùng thư mục)
+    import os
+    import shutil
+    keep = []
+    for idef in res.doc.objects.query("IMAGEDEF"):
+        src = idef.dxf.filename
+        if os.path.isabs(src) and os.path.isfile(src):
+            dst = os.path.join(os.path.dirname(os.path.abspath(path)), os.path.basename(src))
+            if os.path.abspath(dst) != os.path.abspath(src):
+                shutil.copyfile(src, dst)
+            keep.append((idef, src))
+            idef.dxf.filename = os.path.basename(src)
+    try:
+        res.doc.saveas(path)
+    finally:
+        for idef, src in keep:
+            idef.dxf.filename = src
 
 
 def pdf_bytes(res: Result, only=None) -> bytes:
@@ -104,7 +120,9 @@ def pdf_bytes(res: Result, only=None) -> bytes:
         ctx = RenderContext(res.doc)
         be = pmb.PyMuPdfBackend()
         hs = res.handles[i] if i < len(res.handles) else None
-        flt = (lambda e, hs=hs: e.dxf.handle in hs) if hs else None
+        # IMAGE (logo) không vẽ qua ezdxf: ảnh chèn thẳng vào PDF (res.ole)
+        flt = (lambda e, hs=hs: e.dxf.handle in hs and e.dxftype() != "IMAGE") if hs else \
+            (lambda e: e.dxftype() != "IMAGE")
         Frontend(ctx, be, config=cfg).draw_layout(msp, finalize=True, filter_func=flt)
         page = layout.Page(PAGE_W, PAGE_H, layout.Units.mm, margins=layout.Margins.all(0))
         data = be.get_pdf_bytes(page, settings=layout.Settings(fit_page=False, scale=1.0),

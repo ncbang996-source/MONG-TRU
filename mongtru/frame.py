@@ -22,6 +22,12 @@ DEFAULT_FIELDS = {
     "MABV": {"x": 387.2, "y": 15.0, "h": 2.5, "align": "MC", "wmax": 43.0, "bold": True,
              "box": [364.7, 10.0, 409.6, 20.0]},
 }
+# Logo chọn từ file ảnh (khung có logo OLE nhưng file DXF không lưu dữ liệu ảnh): ô đặt logo (x0, y0, x1, y1) mm,
+# ảnh giữ tỷ lệ, căn giữa ô. Mặc định: chỗ logo SEIAC của khung A3 SEIAC (KT-A3 dời theo khung NMĐG Hướng Phùng 7:
+# khung lệch +0.3 / +0.5 mm), cùng cỡ 27.4 x 7.0 mm như OLE trống trong khung. "<SEIAC>" = logo kèm chương trình
+# (trích từ OLE của KT-A3).
+LOGO_BUILTIN = "<SEIAC>"
+DEFAULT_LOGO = {"file": "", "rect": [265.2, 39.4, 292.6, 46.4]}
 FIELD_LABELS = {"TEN1": "Tên bản vẽ (dòng 1)", "TEN2": "Tên bản vẽ (dòng 2)", "TL": "Tỷ lệ",
                 "TO": "Tờ", "MABV": "Mã số bản vẽ"}
 # tag attribute được nhận theo các tên thường gặp
@@ -157,18 +163,131 @@ def new_output_doc(frame_path: str | None, stage: str, fields: dict | None = Non
                     pt = e.dxf.align_point
                 if any(b[0] <= pt.x <= b[2] and b[1] <= pt.y <= b[3] for b in boxes):
                     blk.delete_entity(e)      # chữ cũ trong ô sẽ điền lại
-        tags = set()
+        tags = Tags()
+        _auto_labels(doc, blk, fields or DEFAULT_FIELDS, tags)
         for e in blk:
             if e.dxftype() == "TEXT" and e.dxf.text.strip().upper() in STAGE_WORDS:
                 e.dxf.text = stage
             elif e.dxftype() == "ATTDEF":
                 tags.add(e.dxf.tag.upper())
+        _add_logo(doc, fields, tags)
         return doc, tags
     doc = ezdxf.new("R2018", setup=True, units=4)
     setup_doc(doc)
     blk = doc.blocks.new(BLOCK)
     _simple_frame(blk)
-    return doc, set()
+    tags = Tags()
+    _add_logo(doc, fields, tags)
+    return doc, tags
+
+
+def _add_logo(doc, fields, tags):
+    lg = logo_png(fields)
+    if lg:
+        tags.logo = (doc.add_image_def(filename=lg[3], size_in_pixel=(lg[1], lg[2])), logo_rect(fields, lg[1], lg[2]))
+
+
+def logo_cfg(fields) -> dict:
+    return {**DEFAULT_LOGO, **((fields or {}).get("LOGO") or {})}
+
+
+_logo_cache: dict = {}
+
+
+def logo_png(fields):
+    """(png, w_px, h_px, đường dẫn) của logo đã chọn, None nếu không có / không đọc được."""
+    f = logo_cfg(fields).get("file") or ""
+    if f == LOGO_BUILTIN:
+        f = os.path.join(cad.resource_dir(), "frames", "SEIAC_logo.png")
+    try:
+        key = (os.path.abspath(f), os.path.getmtime(f))
+    except OSError:
+        return None
+    if key not in _logo_cache:
+        from PIL import Image
+        try:
+            im = Image.open(f)
+            im.load()
+            buf = io.BytesIO()
+            im.convert("RGBA").save(buf, "PNG")
+            _logo_cache[key] = (buf.getvalue(), im.width, im.height, os.path.abspath(f))
+        except Exception:
+            _logo_cache[key] = None
+    return _logo_cache[key]
+
+
+def logo_rect(fields, wpx, hpx):
+    """Ô đặt logo thu theo tỷ lệ ảnh, căn giữa: (x0, y0, x1, y1)."""
+    x0, y0, x1, y1 = (float(v) for v in logo_cfg(fields)["rect"])
+    w, h = abs(x1 - x0), abs(y1 - y0)
+    x0, y0 = min(x0, x1), min(y0, y1)
+    k = min(w / wpx, h / hpx)
+    dw, dh = wpx * k, hpx * k
+    xa, ya = x0 + (w - dw) / 2, y0 + (h - dh) / 2
+    return xa, ya, xa + dw, ya + dh
+
+
+def pdf_images(frame_path, fields) -> list:
+    """Ảnh chèn vào PDF (toạ độ trong khung): logo OLE của khung + logo chọn từ file ảnh."""
+    out = list(ole_images(frame_path)) if frame_path else []
+    lg = logo_png(fields)
+    if lg:
+        out.append((*logo_rect(fields, lg[1], lg[2]), lg[0]))
+    return out
+
+
+class Tags(set):
+    """Tag attribute của khung + ô tự đặt theo nhãn có sẵn trong khung (auto: ô -> cấu hình chữ)."""
+
+    def __init__(self, *a):
+        super().__init__(*a)
+        self.auto = {}
+        self.logo = None                                   # (image def, (x0, y0, x1, y1)) -> IMAGE trong DXF
+
+
+LABELS = {"TL": ("TL:", "TỶ LỆ:"), "TO": ("TỜ:", "TỜ SỐ:")}
+
+
+def _auto_labels(doc, blk, fields, tags):
+    """Khung có chữ nhãn "TL:" / "TỜ:" mà vị trí ô cấu hình đè lên nhãn (khung khác mẫu KT-A3): bỏ nhãn trong khung,
+    mỗi tờ ghi lại "nhãn + giá trị" ngay sau nhãn, cùng kiểu chữ, cao chữ, đường chân chữ."""
+    from ezdxf.fonts import fonts as ff
+    for e in list(blk):
+        if e.dxftype() != "TEXT":
+            continue
+        raw = e.dxf.text
+        lab = raw.strip()
+        key = next((k for k, v in LABELS.items() if lab.upper() in v), None)
+        cfg = fields.get(key) if key else None
+        if not cfg:
+            continue
+        h = float(e.dxf.height)
+        st = e.dxf.get("style", "Standard")
+        wf = float(e.dxf.get("width", 1.0) or 1.0)
+        try:
+            sty = doc.styles.get(st)
+            font = ff.make_font(sty.dxf.font or cad.FONT_R, h)
+            if not e.dxf.hasattr("width") and sty.dxf.width:
+                wf = float(sty.dxf.width)
+        except Exception:
+            font = ff.make_font(cad.FONT_R, h)
+        wfull = font.text_width(raw) * wf
+        wlab = font.text_width(lab) * wf
+        ha = e.dxf.get("halign", 0)
+        if ha in (1, 4) and e.dxf.hasattr("align_point"):
+            x0 = e.dxf.align_point.x - wfull / 2
+        elif ha == 2 and e.dxf.hasattr("align_point"):
+            x0 = e.dxf.align_point.x - wfull
+        else:
+            x0 = e.dxf.insert.x
+        lead = raw[:len(raw) - len(raw.lstrip())]
+        x0 += font.text_width(lead) * wf if lead else 0.0
+        x1 = x0 + wlab
+        if not (x0 - 0.5 <= float(cfg["x"]) <= x1 + 0.3):
+            continue                                   # ô cấu hình nằm sau nhãn: giữ như cũ
+        tags.auto[key] = {"x": x0, "y": e.dxf.insert.y, "h": h, "style": st, "width": wf, "layer": e.dxf.layer,
+                          "label": raw.rstrip() + " "}
+        blk.delete_entity(e)
 
 
 def _simple_frame(blk):
@@ -205,7 +324,16 @@ def place(doc, ox, oy, values: dict, fields: dict, tags: set):
             if t:
                 av[t] = v
         ins.add_auto_attribs(av)
+    if getattr(tags, "logo", None):
+        idef, (x0, y0, x1, y1) = tags.logo
+        msp.add_image(idef, (ox + x0, oy + y0), (x1 - x0, y1 - y0), dxfattribs={"layer": "KHUNG"})
     done = {f for f in values if tags and match_tag(tags, f)}
+    for f, a in getattr(tags, "auto", {}).items():
+        if f in values and f not in done:
+            t = msp.add_text(a["label"] + str(values[f]), height=a["h"],
+                             dxfattribs={"layer": a["layer"], "style": a["style"], "width": a["width"]})
+            t.set_placement((ox + a["x"], oy + a["y"]))
+            done.add(f)
     for f, v in values.items():
         if f in done or f not in fields or not v:
             continue

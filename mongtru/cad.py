@@ -54,7 +54,31 @@ def init_fonts():
         return
     import pathlib
     from ezdxf.fonts import fonts
-    fonts.font_manager.scan_folder(pathlib.Path(font_dir()))
+    fm = fonts.font_manager
+    fm.scan_folder(pathlib.Path(font_dir()))
+    # Chữ MTEXT của khung tên gọi font theo họ (\fRoboto Condensed|b1, \fRoboto SemiBold...): luôn dùng font tĩnh kèm
+    # chương trình. Font Roboto cài trên máy (bản variable, nét chồng nhau) vẽ ra chữ lỗi chấm trắng.
+    orig = fm.find_best_match
+    own = {(c, b): fm.get_font_face(f) for (c, b), f in {
+        (True, False): FONT_R, (True, True): FONT_B,
+        (False, False): "Roboto-Regular.ttf", (False, True): "Roboto-Bold.ttf"}.items()}
+
+    orig_name = fm.find_font_name
+
+    def roboto(family, weight):
+        f = str(family or "").lower()
+        if not f.startswith("roboto"):
+            return None
+        return own["condensed" in f, weight >= 600 or any(w in f for w in ("semibold", "bold", "black", "heavy"))]
+
+    def find_best_match(family="sans-serif", style="Regular", weight=400, width=5, italic=False):
+        return roboto(family, weight) or orig(family, style, weight, width, italic)
+
+    def find_font_name(font_face):                      # MTEXT nhiều định dạng tra font theo đường này
+        r = roboto(font_face.family, font_face.weight) if not font_face.filename else None
+        return r.filename if r else orig_name(font_face)
+    fm.find_best_match = find_best_match
+    fm.find_font_name = find_font_name
     _fonts_ready = True
 
 

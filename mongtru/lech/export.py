@@ -83,5 +83,5 @@ def build(mp: dict, frame_path: str | None = None, fields: dict | None = None, o
             sheet2.draw3(c, gs[i])
         handles.append({e.dxf.handle for e in list(msp)[n0:]})
         objs.append(c.objs)
-    ole = frame.ole_images(frame_path) if frame_path else []
+    ole = frame.pdf_images(frame_path, fields)
     return Result(doc, gs[0], origins, ole, handles, objs)
