@@ -263,8 +263,8 @@ def tim_mong(c: Ctx, cx, cy, r):
 
 
 def draw_route(c: Ctx, g: Geo, cx, cy, lh, lx):
-    """Hướng tuyến qua tim móng: đỡ - 2 chiều theo Y; néo góc - 2 tia lệch 10°, phân giác sang trái;
-    néo dừng - 1 chiều. Chữ đặt trong khoảng trống giữa 2 hàng trụ."""
+    """Hướng tuyến qua tim móng: đỡ, néo thẳng, néo hãm - 2 chiều theo Y; néo góc - 2 tia lệch 10°, phân giác sang
+    trái; néo dừng - 1 chiều. Chữ đặt trong khoảng trống giữa 2 hàng trụ."""
     ht = int(g.p["HT"])
     wr = txtw(T_ROUTE, 2.0)
     a = max(3.0 + wr / 2, min(0.5 * lh, lh - 2.4 - wr / 2))

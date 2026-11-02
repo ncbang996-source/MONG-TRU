@@ -169,3 +169,11 @@ assert nd8 == 0 and grp8 and {3, 4} <= set(grp8), (grp8, st8)
 export.pdf_bytes(export.build(dict(pv, RC_N=28)))
 view3d.Scene(Geo(dict(pv, RC_N=28)))
 print("OK - co mong vat")
+# hình thức cột: néo thẳng, néo hãm (đọc chữ ô B4, tên bản vẽ, hướng tuyến 2 chiều như cột đỡ)
+for txt, ht in (("ĐỠ", 0), ("NÉO GÓC", 1), ("NÉO DỪNG", 2), ("NÉO THẲNG", 3), ("Néo hãm", 4), ("NÉO", 1)):
+    assert model.ht_from_string(txt) == ht, txt
+for ht in (3, 4):
+    r = export.build(dict(pv, HT=ht))
+    assert any(t.dxf.text.startswith(f"HÌNH THỨC MÓNG CỘT {model.HT_NAMES[ht]} ") for t in r.doc.modelspace().query("TEXT"))
+    export.pdf_bytes(r, only={0})
+print("OK - hinh thuc cot")

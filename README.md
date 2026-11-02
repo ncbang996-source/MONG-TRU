@@ -30,7 +30,7 @@ App Windows chạy offline, vẽ nhanh bản vẽ **móng trụ rời 4 trụ** 
 ## Ô đọc từ sheet TONG HOP
 | Ô | Thông số | Ô | Thông số |
 |---|---|---|---|
-| B4 | Hình thức cột (ĐỠ / NÉO GÓC / NÉO DỪNG) | C4, C5, C6 | Tên cột, tên móng, giai đoạn |
+| B4 | Hình thức cột (ĐỠ / NÉO GÓC / NÉO DỪNG / NÉO THẲNG / NÉO HÃM; néo thẳng, néo hãm vẽ hướng tuyến 2 chiều như cột đỡ) | C4, C5, C6 | Tên cột, tên móng, giai đoạn |
 | J4, J5 | Bê tông móng, bê tông lót | J6 | Mã bản vẽ ghi chú chung |
 | J7 + K7 | Mã số bản vẽ ghi khung tên (vd `2511TNC2.F.NM.C.` + `201`) | | |
 | B9 | Bm = Lm: cạnh bản đế | B10, B11 | Hm: chôn sâu, d: cao trên mặt đất |

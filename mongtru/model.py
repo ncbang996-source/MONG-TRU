@@ -36,7 +36,8 @@ CELL_RLAYERS = "K28"                               # "02 lớp"
 CELL_NPIER = "C24"                                 # số trụ móng
 CELL_DP = "H29"                                    # dự phòng thép (%)
 
-HT_NAMES = ["ĐỠ", "NÉO GÓC", "NÉO DỪNG"]
+HT_NAMES = ["ĐỠ", "NÉO GÓC", "NÉO DỪNG", "NÉO THẲNG", "NÉO HÃM"]   # thêm loại mới vào cuối (giữ số cũ)
+HT_UI = ["Đỡ", "Néo góc", "Néo dừng", "Néo thẳng", "Néo hãm"]
 SCALES = [50, 75, 100, 125, 150, 200, 250]
 SLOPE_DRAW = 0.5          # hệ số mở mái THỂ HIỆN trên bản vẽ (C18 chỉ dùng tính khối lượng)
 TL = 0.1                  # dày bê tông lót (m)
@@ -88,6 +89,10 @@ def ht_from_string(s: str) -> int:
     u = s.upper()
     if "DỪNG" in u or "DUNG" in u:
         return 2
+    if "THẲNG" in u or "THANG" in u:
+        return 3
+    if "HÃM" in u or "HAM" in u:
+        return 4
     if "NÉO" in u or "NEO" in u or "GÓC" in u or "GOC" in u:
         return 1
     return 0
