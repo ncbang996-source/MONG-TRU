@@ -328,7 +328,7 @@ def draw_plan(c: Ctx, L: Lay):
     tim_mong(c, cx, cy, 1.2)
     with c.item("axis", "Ghi chú tim móng"):
         w = txtw(T_AXIS, 2.0)
-        if int(mp["HT"]) == 1:
+        if int(mp["HT"]) in model.HT_BISECT:
             c.pl("CHU", False, [(cx, cy), (cx + 3.0, cy - 4.7), (cx + 4.0 + w, cy - 4.7)], fixed=(0,))
             c.tx("CHU", cx + 3.9, cy - 4.7 + 0.9, 2.0, T_AXIS)
         else:

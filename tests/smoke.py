@@ -7,7 +7,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
-from mongtru import export, kl_excel, model, sheet2, view3d  # noqa: E402
+from mongtru import export, kl_excel, model, sheet1, sheet2, view3d  # noqa: E402
 from mongtru.geom import Geo  # noqa: E402
 
 p, warn = model.read_excel(os.path.join(ROOT, "samples", "D112-30.xls"))
@@ -172,8 +172,10 @@ print("OK - co mong vat")
 # hình thức cột: néo thẳng, néo hãm (đọc chữ ô B4, tên bản vẽ, hướng tuyến 2 chiều như cột đỡ)
 for txt, ht in (("ĐỠ", 0), ("NÉO GÓC", 1), ("NÉO DỪNG", 2), ("NÉO THẲNG", 3), ("Néo hãm", 4), ("NÉO", 1)):
     assert model.ht_from_string(txt) == ht, txt
-for ht in (3, 4):
+for ht in range(5):
     r = export.build(dict(pv, HT=ht))
-    assert any(t.dxf.text.startswith(f"HÌNH THỨC MÓNG CỘT {model.HT_NAMES[ht]} ") for t in r.doc.modelspace().query("TEXT"))
+    txt = [t.dxf.text for t in r.doc.modelspace().query("TEXT")]
+    assert any(t.startswith(f"HÌNH THỨC MÓNG CỘT {model.HT_NAMES[ht]} ") for t in txt)
+    assert (sheet1.T_BISECT in txt) == (ht in (1, 3, 4)), ht     # phân giác: néo góc, néo thẳng, néo hãm
     export.pdf_bytes(r, only={0})
 print("OK - hinh thuc cot")

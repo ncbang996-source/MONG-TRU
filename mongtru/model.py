@@ -38,6 +38,8 @@ CELL_DP = "H29"                                    # dự phòng thép (%)
 
 HT_NAMES = ["ĐỠ", "NÉO GÓC", "NÉO DỪNG", "NÉO THẲNG", "NÉO HÃM"]   # thêm loại mới vào cuối (giữ số cũ)
 HT_UI = ["Đỡ", "Néo góc", "Néo dừng", "Néo thẳng", "Néo hãm"]
+HT_ANGLE = (1, 4)            # hướng tuyến 2 tia lệch 10° + phân giác: néo góc, néo hãm
+HT_BISECT = (1, 3, 4)        # có mũi tên phân giác (sang trái): néo góc, néo thẳng, néo hãm
 SCALES = [50, 75, 100, 125, 150, 200, 250]
 SLOPE_DRAW = 0.5          # hệ số mở mái THỂ HIỆN trên bản vẽ (C18 chỉ dùng tính khối lượng)
 TL = 0.1                  # dày bê tông lót (m)

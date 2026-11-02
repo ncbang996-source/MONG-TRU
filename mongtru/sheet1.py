@@ -263,12 +263,12 @@ def tim_mong(c: Ctx, cx, cy, r):
 
 
 def draw_route(c: Ctx, g: Geo, cx, cy, lh, lx):
-    """Hướng tuyến qua tim móng: đỡ, néo thẳng, néo hãm - 2 chiều theo Y; néo góc - 2 tia lệch 10°, phân giác sang
-    trái; néo dừng - 1 chiều. Chữ đặt trong khoảng trống giữa 2 hàng trụ."""
+    """Hướng tuyến qua tim móng: đỡ - 2 chiều theo Y; néo thẳng - như đỡ, thêm phân giác sang trái; néo góc, néo hãm -
+    2 tia lệch 10°, phân giác sang trái; néo dừng - 1 chiều. Chữ đặt trong khoảng trống giữa 2 hàng trụ."""
     ht = int(g.p["HT"])
     wr = txtw(T_ROUTE, 2.0)
     a = max(3.0 + wr / 2, min(0.5 * lh, lh - 2.4 - wr / 2))
-    if ht == 1:
+    if ht in model.HT_ANGLE:
         dlt = math.radians(10.0)
         sn, cs = math.sin(dlt), math.cos(dlt)
         vee(c, cx, cy, cx - lh * sn, cy + lh * cs)
@@ -283,6 +283,9 @@ def draw_route(c: Ctx, g: Geo, cx, cy, lh, lx):
         vee(c, cx, cy, cx, cy - lh)
         vee(c, cx, cy, cx, cy + lh)
         c.txr("CHU", cx - 2.4, cy + a, 2.0, T_ROUTE, 90.0)
+        if ht in model.HT_BISECT:
+            vee(c, cx, cy, cx - lx, cy)
+            c.tx("CHU", cx - lx + 2.5, cy + 1.6, 2.0, T_BISECT)
 
 
 def plan_outline(c: Ctx, g: Geo, v: V, lot=True):
@@ -352,7 +355,7 @@ def draw_plan(c: Ctx, g: Geo):
     tim_mong(c, cx, cy, 1.2)
     with c.item("axis", "Ghi chú tim móng"):
         w = txtw(T_AXIS, 2.0)
-        if int(g.p["HT"]) == 1:          # néo góc: phân giác chạy sang trái -> ghi tim móng phía dưới bên phải
+        if int(g.p["HT"]) in model.HT_BISECT:   # có phân giác chạy sang trái -> ghi tim móng phía dưới bên phải
             c.pl("CHU", False, [(cx, cy), (cx + 3.0, cy - 4.7), (cx + 4.0 + w, cy - 4.7)], fixed=(0,))
             c.tx("CHU", cx + 3.9, cy - 4.7 + 0.9, 2.0, T_AXIS)
         else:
