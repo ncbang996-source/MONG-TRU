@@ -19,6 +19,8 @@ jobs:
         run: python tests/smoke.py
       - name: Kiểm tra khung tên
         run: python tests/smoke_frame.py
+      - name: Kiểm tra IFC, 3D, mặt bằng 1:1
+        run: python tests/smoke_ifc.py
       - name: Đóng gói exe
         run: pyinstaller --noconfirm VE_MONGTRU.spec
       - uses: actions/upload-artifact@v4

@@ -2,7 +2,7 @@
 4 trụ giống nhau, thêm tờ bảng kích thước từng thanh khi không đủ chỗ). Xuất PDF / DXF dùng lại mongtru.export."""
 from __future__ import annotations
 
-from .. import cad, frame, model, sheet2
+from .. import cad, frame, model, plan11, sheet2
 from ..cad import Ctx
 from ..export import SHEET_DX, Result
 from ..geom import Geo
@@ -83,5 +83,6 @@ def build(mp: dict, frame_path: str | None = None, fields: dict | None = None, o
             sheet2.draw3(c, gs[i])
         handles.append({e.dxf.handle for e in list(msp)[n0:]})
         objs.append(c.objs)
+    plan11.draw(doc, mp)                      # mặt bằng 1:1 (m) cho CAD - ngoài các tờ, không in PDF
     ole = frame.pdf_images(frame_path, fields)
     return Result(doc, gs[0], origins, ole, handles, objs)

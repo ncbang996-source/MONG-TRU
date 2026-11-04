@@ -14,7 +14,7 @@ COL = {
     "rib": (150, 0, 20), "dai": (40, 80, 230), "gia": (120, 60, 160),
     "pier": (220, 90, 20), "hoop": (30, 110, 210), "bg": (255, 255, 255),
     "tie": (0, 150, 200), "chair": (90, 90, 90), "haunch": (0, 140, 90), "mesh": (60, 60, 200),
-    "bolt": (70, 70, 70), "ladder": (110, 110, 110),
+    "bolt": (70, 70, 70), "ladder": (110, 110, 110), "axis": (200, 40, 40),
 }
 LAYERS = ("bt", "slab", "pier", "dai")
 
@@ -38,6 +38,51 @@ def prism(pts, z0, z1):
     return out
 
 
+def bend_r(d):
+    """Bán kính uốn (tới tim thanh) theo đường kính, như mô hình Revit tham khảo: đai Ø <= 10 - 1.5d,
+    Ø <= 16 - 2.5d, lớn hơn - 3.5d."""
+    return d * (1.5 if d <= 0.0105 else 2.5 if d <= 0.0165 else 3.5)
+
+
+def fillet(pts, r, closed=False, n=4):
+    """Bo cung bán kính r tại các góc gãy của đường gấp khúc (n đoạn mỗi cung); góc ngắn thì giảm r."""
+    P = [np.asarray(p, float) for p in pts]
+    m = len(P)
+    if m < 3 or r <= 0:
+        return [tuple(p) for p in P]
+    out = []
+    idx = range(m) if closed else range(1, m - 1)
+    if not closed:
+        out.append(P[0])
+    for i in idx:
+        a, b, c = P[i - 1], P[i], P[(i + 1) % m]
+        la, lc = np.linalg.norm(a - b), np.linalg.norm(c - b)
+        if la < 1e-9 or lc < 1e-9:
+            out.append(b)
+            continue
+        u1, u2 = (a - b) / la, (c - b) / lc
+        th = math.acos(max(-1.0, min(1.0, float(u1 @ u2))))
+        if th > math.pi - 1e-3 or th < 1e-3:
+            out.append(b)
+            continue
+        t = r / math.tan(th / 2)
+        tmax = 0.45 * min(la, lc)
+        rr = r if t <= tmax else tmax * math.tan(th / 2)
+        t = min(t, tmax)
+        p1, p2 = b + u1 * t, b + u2 * t
+        bis = (u1 + u2) / np.linalg.norm(u1 + u2)
+        ctr = b + bis * (rr / math.sin(th / 2))
+        v1, v2 = p1 - ctr, p2 - ctr
+        om = math.acos(max(-1.0, min(1.0, float(v1 @ v2) / (np.linalg.norm(v1) * np.linalg.norm(v2)))))
+        for k in range(n + 1):
+            sk = k / n
+            out.append(ctr + (math.sin((1 - sk) * om) * v1 + math.sin(sk * om) * v2) / math.sin(om) if om > 1e-9
+                       else p1)
+    if not closed:
+        out.append(P[-1])
+    return [tuple(float(v) for v in p) for p in out]
+
+
 class Scene:
     """Danh sách mặt bê tông và đoạn thép (m, gốc tại tim móng, z = 0 ở đáy bản đế).
     quarter=True: chỉ hiện 1 trụ (trụ +X, +Y), đủ cả trụ."""
@@ -48,6 +93,10 @@ class Scene:
         self.lim = (-1e9, -1e9)
         self.faces = []      # (layer, color, alpha, [pts])
         self.lines = []      # (layer, color, width_m, p0, p1)
+        self.bars = []       # (layer, color, d_m, [pts] đã bo cung, closed, trụ (sx, sy)) - đường tim thanh (xuất IFC)
+        self.solids = []     # (loại "mong" / "lot", trụ (sx, sy), [mặt]) - khối bê tông kín (xuất IFC)
+        self.axes = []       # (tên, p0, p1) - trục tim trụ, tim móng
+        self._pier = (1, 1)
         self.build()
 
     def F(self, lay, col, al, faces):
@@ -55,7 +104,13 @@ class Scene:
             if all(p[0] >= self.lim[0] - 1e-9 and p[1] >= self.lim[1] - 1e-9 for p in f):
                 self.faces.append((lay, col, al, f))
 
-    def L(self, lay, col, d, pts, closed=False):
+    def L(self, lay, col, d, pts, closed=False, bend=True):
+        if bend and len(pts) > 2:
+            pts = fillet(pts, bend_r(d), closed)
+            if closed:
+                pts = pts + [pts[0]]
+                closed = False
+        self.bars.append((lay, col, d, pts, closed, self._pier))
         n = len(pts)
         for i in range(n if closed else n - 1):
             p0, p1 = np.array(pts[i], float), np.array(pts[(i + 1) % n], float)
@@ -110,12 +165,21 @@ class Scene:
             piers = [(d, d)]
         for X, Y in piers:
             hl = B + ml
-            self.F("bt", COL["lot"], 0.30, [[(X - hl, Y - hl, 0.0), (X + hl, Y - hl, 0.0), (X + hl, Y + hl, 0.0),
-                                             (X - hl, Y + hl, 0.0)]])
+            pk = (1 if X > 0 else -1, 1 if Y > 0 else -1)
+            lot = box(X - hl, X + hl, Y - hl, Y + hl, -model.TL, 0.0)        # bê tông lót: khối dày TL
+            self.F("bt", COL["lot"], 0.30, lot)
+            self.solids.append(("lot", pk, lot))
+            body = []
             for sx in (-1, 1):
                 for sy in (-1, 1):
-                    self.F("bt", bt, al, self.pad_faces(X, Y, sx, sy))
-            self.F("bt", bt, al, self.col_faces(X, Y, 1 if X > 0 else -1, 1 if Y > 0 else -1))
+                    body += self.pad_faces(X, Y, sx, sy)
+            body += self.col_faces(X, Y, *pk)
+            self.F("bt", bt, al, body)
+            self.solids.append(("mong", pk, body))
+        e_ax = d + B + 0.6                                                    # trục: tim trụ, tim móng
+        for s_ in (-1, 1):
+            self.axes.append((f"X{'1' if s_ < 0 else '2'}", (s_ * d, -e_ax, 0.0), (s_ * d, e_ax, 0.0)))
+            self.axes.append((f"Y{'1' if s_ < 0 else '2'}", (-e_ax, s_ * d, 0.0), (e_ax, s_ * d, 0.0)))
         zx, zy = g.z_bot()
         d0, d1 = g.d_top()
         hk = g.hook_top()
@@ -137,6 +201,7 @@ class Scene:
         grp, st, ndg = g.tie_plan3()
         for X, Y in piers:
             ox, oy = (1 if X > 0 else -1), (1 if Y > 0 else -1)     # hướng mặt ngoài (vát) của cổ móng
+            self._pier = (ox, oy)
             W = lambda u, v, z: (X + ox * u, Y + oy * v, z)
             # lưới dưới
             for y in xb:
@@ -275,6 +340,21 @@ def render(scene: Scene, w=1200, h=800, yaw=-35.0, pitch=28.0, zoom=1.0, layers=
         for _, col, al, pts in fs:
             dr.line(pts + [pts[0]], fill=COL["edge"] + (120,), width=max(1, ss))
     dr = ImageDraw.Draw(img)
+    for nm, a, b in getattr(scene, "axes", []):          # trục tim trụ: nét gạch chấm ở đáy móng
+        (sa,), (sb,) = scr(proj([a])), scr(proj([b]))
+        L_ = math.hypot(sb[0] - sa[0], sb[1] - sa[1])
+        if L_ < 1:
+            continue
+        ux, uy = (sb[0] - sa[0]) / L_, (sb[1] - sa[1]) / L_
+        t, pat = 0.0, (18 * ss, 5 * ss, 3 * ss, 5 * ss)
+        i = 0
+        while t < L_:
+            t2 = min(L_, t + pat[i % 4])
+            if i % 2 == 0:
+                dr.line([(sa[0] + ux * t, sa[1] + uy * t), (sa[0] + ux * t2, sa[1] + uy * t2)],
+                        fill=COL["axis"] + (255,), width=max(1, ss))
+            t, i = t2, i + 1
+        dr.text((sb[0] + 4 * ss, sb[1] - 6 * ss), nm, fill=COL["axis"] + (255,))
     ls = [t for t in scene.lines if t[0] in layers]
     if ls:
         p0 = proj([t[3] for t in ls])

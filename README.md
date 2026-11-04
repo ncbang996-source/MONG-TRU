@@ -5,6 +5,10 @@ App Windows chạy offline, vẽ nhanh bản vẽ **móng trụ rời 4 trụ** 
 ## Chức năng
 - **Đọc Excel:** lấy số liệu từ sheet `TONG HOP` (các ô liệt kê bên dưới). Đọc được cả `.xls` và `.xlsx` / `.xlsm`. Mỗi lần mở file, mọi thông số và lựa chọn (kể cả trình bày hố đào) về mặc định rồi mới đọc file (ô trống không giữ số của file trước, có cảnh báo). Tỷ lệ tờ 1 luôn tự chọn lại.
 - **Hiệu chỉnh:** sửa mọi thông số trên giao diện. App kiểm tra số liệu và cập nhật khối lượng; khi đang gõ, thông báo lỗi chờ khoảng 1,2 s sau lần gõ cuối mới hiện.
+- **Xuất:** PDF, AutoCAD DXF, Excel khối lượng, IFC (BIM); nút "Tất cả..." xuất một lần các loại đã chọn (mặc định tất cả) vào cùng thư mục, cùng tên gốc (`.pdf`, `.dxf`, `_KL.xlsx`, `.ifc`).
+- **DXF:** ngoài các tờ in, có thêm 1 mặt bằng móng tỷ lệ 1:1 đơn vị mét (1 đơn vị = 1 m, gốc toạ độ tại tim móng, kích thước thật, ghi kích thước mm) đặt bên trái tờ 1 - để chép sang bản vẽ tổng mặt bằng / định vị; không in ra PDF.
+- **IFC (IFC4 Reference View, đơn vị mm):** mỗi trụ 1 IfcFooting (bản đế + cổ móng) và 1 IfcSlab bê tông lót, cốt thép IfcReinforcingBar theo loại + đường kính (thanh tròn theo đường tim, bo cung uốn: Ø <= 10 - 1.5d, Ø <= 16 - 2.5d, lớn hơn - 3.5d, như mô hình Revit tham khảo), bu lông neo IfcMechanicalFastener, lưới trục IfcGrid, vật liệu, màu, lớp (S-FOOTING, S-REBAR, S-GRID), thể tích, số thanh / tổng dài / khối lượng thép. Cao độ: mặt đất tự nhiên = 0 (móng 2 loại: theo cao độ thiết kế). Mở bằng Revit, Tekla, Navisworks, BIMvision...
+- **3D:** bê tông lót là khối dày 100, thép bo cung uốn như IFC, nét trục tim cột.
 - **PDF:** chữ (chữ bản vẽ, kích thước, khung tên) là chữ thật, font Roboto nhúng trong file - chọn, tìm, sửa được bằng phần mềm sửa PDF; nét, ký hiệu là hình vẽ.
 - **Khung tên:** ô tỷ lệ, số tờ kéo dịch được trên khung xem trước (chế độ sắp xếp) như các chữ khác, khi app đặt lệch.
 - **Khung tên:** mặc định dùng `assets/frames/KT-A3.dxf` (block KHUNG_TEN). App điền attribute nếu có, nếu không thì điền theo toạ độ. Logo OLE được chèn vào PDF.

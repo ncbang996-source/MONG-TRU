@@ -13,7 +13,7 @@ import tkinter as tk
 import traceback
 from tkinter import filedialog, messagebox, ttk
 
-from mongtru import _meta, cad, export, frame, kl_excel, model
+from mongtru import _meta, cad, export, frame, ifc, kl_excel, model
 from mongtru.lech import export as lexport
 from mongtru.lech import kl_excel as lkl
 from mongtru.lech import model as lmodel
@@ -249,7 +249,7 @@ class App(tk.Tk):
         tt.pack(side="left", pady=4)
         tk.Label(tt, text=APP_NAME, background=C["navy"], foreground="#FFFFFF",
                  font=(f[0], f[1] + 5, "bold")).pack(anchor="w")
-        tk.Label(tt, text=f"{APP_DESC}  •  Excel → PDF / AutoCAD DXF / Excel khối lượng",
+        tk.Label(tt, text=f"{APP_DESC}  •  Excel → PDF / AutoCAD DXF / Excel khối lượng / IFC",
                  background=C["navy"], foreground=C["silver"], font=(f[0], f[1] - 1)).pack(anchor="w")
         tk.Label(hdr, text=f"phiên bản {APP_VER}", background=C["navy"], foreground="#9A9EA5",
                  font=(f[0], f[1] - 1)).pack(side="right", padx=14)
@@ -294,6 +294,8 @@ class App(tk.Tk):
         btn(g4, "PDF", self.export_pdf, "Export")
         btn(g4, "AutoCAD DXF", self.export_dxf, "Export")
         btn(g4, "Excel khối lượng", self.export_xlsx, "Export")
+        btn(g4, "IFC (BIM)", self.export_ifc, "Export")
+        btn(g4, "Tất cả...", self.export_all, "Export")
 
         def flow(e=None):
             """Màn hình hẹp: các nhóm nút tự xuống dòng (không bị khuất)."""
@@ -828,6 +830,64 @@ class App(tk.Tk):
         nm = f"MONG_{tn}_{p.get('COT', '')}_{p.get('GD', '')}".replace(" ", "_").replace("/", "-")
         return nm + ext
 
+    # loại file xuất: (khoá, tên, đuôi tên file mặc định, bộ lọc hộp thoại)
+    KINDS = [("pdf", "PDF bản vẽ", ".pdf", ("PDF", "*.pdf")),
+             ("dxf", "AutoCAD DXF (kèm mặt bằng 1:1 đơn vị m)", ".dxf", ("AutoCAD DXF", "*.dxf")),
+             ("xlsx", "Excel khối lượng", "_KL.xlsx", ("Excel", "*.xlsx")),
+             ("ifc", "Mô hình IFC (BIM)", ".ifc", ("IFC", "*.ifc"))]
+
+    def _write(self, kind, f):
+        """Ghi 1 loại file từ bản vẽ đã dựng (self.res, self.pdf)."""
+        if kind == "pdf":
+            with open(f, "wb") as fh:
+                fh.write(self.pdf)
+        elif kind == "dxf":
+            export.save_dxf(self.res, f)
+        elif kind == "xlsx":
+            if self.xls and os.path.abspath(f) == os.path.abspath(self.xls):
+                raise OSError("Không được ghi đè lên file Excel đầu vào.")
+            mp = getattr(self.res, "params", None)
+            if mp is not None and "TYPES" in mp:
+                lkl.export(mp, lexport.geos(mp), f)
+            else:
+                kl_excel.export(self.res.geo.p, self.res.geo, f)
+        elif kind == "ifc":
+            ifc.export(getattr(self.res, "params", None) or self.res.geo.p, f)
+
+    def export_ifc(self):
+        def go():
+            f = filedialog.asksaveasfilename(title="Xuất mô hình IFC (BIM)", defaultextension=".ifc",
+                                             filetypes=[("IFC", "*.ifc")], initialfile=self._default_name(".ifc"),
+                                             initialdir=os.path.dirname(self.xls) if self.xls else None)
+            if f:
+                try:
+                    self._write("ifc", f)
+                    self.l_msg.config(text=f"Đã xuất IFC: {f}  (mở bằng Revit, Tekla, Navisworks, BIM viewer...)")
+                except Exception as ex:
+                    messagebox.showerror(APP_NAME, f"Không ghi được file:\n{ex}")
+        self._ensure_fresh(go)
+
+    def export_all(self):
+        ExportAllDialog(self)
+
+    def _export_many(self, kinds, base):
+        """Ghi các loại file đã chọn: base + đuôi (cùng thư mục, cùng tên gốc)."""
+        def go():
+            ok, bad = [], []
+            for k, _, ext, _ in self.KINDS:
+                if k not in kinds:
+                    continue
+                f = base + ext
+                try:
+                    self._write(k, f)
+                    ok.append(os.path.basename(f))
+                except Exception as ex:
+                    bad.append(f"{os.path.basename(f)}: {ex}")
+            self.l_msg.config(text=f"Đã xuất {len(ok)} file vào {os.path.dirname(base)}: " + ", ".join(ok))
+            if bad:
+                messagebox.showerror(APP_NAME, "Không ghi được:\n" + "\n".join(bad))
+        self._ensure_fresh(go)
+
     def export_pdf(self):
         def go():
             f = filedialog.asksaveasfilename(title="Xuất PDF", defaultextension=".pdf", filetypes=[("PDF", "*.pdf")],
@@ -864,15 +924,8 @@ class App(tk.Tk):
                                              initialdir=os.path.dirname(self.xls) if self.xls else None)
             if not f:
                 return
-            if self.xls and os.path.abspath(f) == os.path.abspath(self.xls):
-                messagebox.showerror(APP_NAME, "Không được ghi đè lên file Excel đầu vào.")
-                return
             try:
-                mp = getattr(self.res, "params", None)
-                if mp is not None and "TYPES" in mp:
-                    lkl.export(mp, lexport.geos(mp), f)
-                else:
-                    kl_excel.export(self.res.geo.p, self.res.geo, f)
+                self._write("xlsx", f)
                 self.l_msg.config(text=f"Đã xuất Excel khối lượng: {f}")
             except Exception as ex:
                 messagebox.showerror(APP_NAME, f"Không ghi được file:\n{ex}")
@@ -1253,7 +1306,8 @@ class App(tk.Tk):
             mp, p = p, lui.fill_params(p, 0)
             p = {k: v for k, v in p.items() if k in model.default_params()}
         save_settings({"xls": self.xls, "frame": self.frame_path, "fields": self.fields,
-                       "auto": self.v_auto.get(), "params": p, "mixed": mp})
+                       "auto": self.v_auto.get(), "params": p, "mixed": mp,
+                       "export_all": self.st.get("export_all")})
         self.destroy()
 
 
@@ -1266,6 +1320,58 @@ def pdf_images(data, dpi=150):
             pix = pg.get_pixmap(dpi=dpi)
             out.append(Image.frombytes("RGB", (pix.width, pix.height), pix.samples))
     return out
+
+
+class ExportAllDialog(tk.Toplevel):
+    """Xuất nhiều loại file 1 lần: chọn loại (mặc định tất cả) + tên file gốc."""
+
+    def __init__(self, app: App):
+        super().__init__(app)
+        self.app = app
+        self.title("Xuất tất cả")
+        self.transient(app)
+        self.resizable(False, False)
+        f = ttk.Frame(self, padding=12)
+        f.pack(fill="both")
+        ttk.Label(f, text="Chọn loại file cần xuất (cùng thư mục, cùng tên gốc):").grid(row=0, column=0, columnspan=3,
+                                                                                         sticky="w", pady=(0, 6))
+        sel = app.st.get("export_all") or [k for k, *_ in App.KINDS]
+        self.v = {}
+        for i, (k, lbl, ext, _) in enumerate(App.KINDS):
+            var = tk.BooleanVar(value=k in sel)
+            ttk.Checkbutton(f, text=f"{lbl}  (*{ext})", variable=var).grid(row=i + 1, column=0, columnspan=3, sticky="w")
+            self.v[k] = var
+        r = len(App.KINDS) + 1
+        ttk.Label(f, text="Tên file gốc").grid(row=r, column=0, sticky="w", pady=(10, 0))
+        d = os.path.dirname(app.xls) if app.xls else os.path.expanduser("~")
+        self.v_base = tk.StringVar(value=os.path.join(d, os.path.splitext(app._default_name(".pdf"))[0]))
+        ttk.Entry(f, textvariable=self.v_base, width=56).grid(row=r + 1, column=0, columnspan=2, sticky="we")
+        ttk.Button(f, text="Chọn...", command=self.pick).grid(row=r + 1, column=2, padx=(4, 0))
+        bf = ttk.Frame(f)
+        bf.grid(row=r + 2, column=0, columnspan=3, sticky="e", pady=(12, 0))
+        ttk.Button(bf, text="Chọn tất cả", command=lambda: [v.set(True) for v in self.v.values()]).pack(side="left")
+        ttk.Button(bf, text="Xuất", command=self.ok).pack(side="left", padx=6)
+        ttk.Button(bf, text="Huỷ", command=self.destroy).pack(side="left")
+
+    def pick(self):
+        cur = self.v_base.get()
+        f = filedialog.asksaveasfilename(parent=self, title="Tên file gốc (không cần đuôi)",
+                                         initialdir=os.path.dirname(cur), initialfile=os.path.basename(cur))
+        if f:
+            self.v_base.set(os.path.splitext(f)[0] if f.lower().endswith((".pdf", ".dxf", ".xlsx", ".ifc")) else f)
+
+    def ok(self):
+        kinds = [k for k, v in self.v.items() if v.get()]
+        base = self.v_base.get().strip()
+        if not kinds or not base:
+            messagebox.showwarning(APP_NAME, "Chọn ít nhất 1 loại file và tên file gốc.", parent=self)
+            return
+        if not os.path.isdir(os.path.dirname(os.path.abspath(base))):
+            messagebox.showerror(APP_NAME, "Thư mục không tồn tại.", parent=self)
+            return
+        self.app.st["export_all"] = kinds
+        self.destroy()
+        self.app._export_many(kinds, base)
 
 
 class FieldsDialog(tk.Toplevel):

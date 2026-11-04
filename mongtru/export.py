@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from . import cad, frame, model, sheet1, sheet2
+from . import cad, frame, model, plan11, sheet1, sheet2
 from .cad import Ctx
 from .geom import Geo
 
@@ -73,6 +73,7 @@ def build(p: dict, frame_path: str | None = None, fields: dict | None = None, of
         sheet2.draw3(c3, g)
         handles.append({e.dxf.handle for e in list(msp)[n0:]})
         objs.append(c3.objs)
+    plan11.draw(doc, p)                       # mặt bằng 1:1 (m) cho CAD - ngoài các tờ, không in PDF
     ole = frame.pdf_images(frame_path, fields)
     return Result(doc, g, origins, ole, handles, objs)
 
