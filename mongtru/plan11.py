@@ -9,6 +9,7 @@ from ezdxf.enums import TextEntityAlignment
 
 from . import cad, model
 from .geom import Geo
+from .sheet1 import T_AXIS, T_BISECT, T_ROUTE
 
 QUAD = {1: (-1, 1), 2: (1, 1), 3: (-1, -1), 4: (1, -1)}
 H_TXT = 0.20                    # cao chữ (m) - in tỷ lệ 1:100 ra chữ 2 mm
@@ -54,10 +55,18 @@ def draw(doc, data, xr=-10.0, ym=148.5):
         if lay == "TRUC":
             e_.dxf.ltscale = 0.025                      # kiểu nét trục định nghĩa theo mm giấy -> theo m
 
-    def tx(s, x, y, h=H_TXT, al=TextEntityAlignment.MIDDLE_CENTER, bold=False):
-        t = msp.add_text(s, height=h, dxfattribs={"layer": "CHU", "style": cad.STYLE_B if bold else cad.STYLE,
-                                                  "width": cad.WIDTH})
+    def tx(s, x, y, h=H_TXT, al=TextEntityAlignment.MIDDLE_CENTER, bold=False, rot=0.0):
+        t = msp.add_text(s, height=h, rotation=rot, dxfattribs={"layer": "CHU", "width": cad.WIDTH,
+                                                                "style": cad.STYLE_B if bold else cad.STYLE})
         t.set_placement(A(x, y), align=al)
+
+    def vee(x1, y1, x2, y2):
+        """Mũi tên chữ V tại (x2, y2) - như tờ in (đầu 1.2 x 1.6 mm giấy ở 1:100)."""
+        d_ = math.hypot(x2 - x1, y2 - y1)
+        ux, uy = (x2 - x1) / d_, (y2 - y1) / d_
+        bx, by = x2 - ux * 0.12, y2 - uy * 0.12
+        msp.add_lwpolyline([A(x1, y1), A(x2, y2), A(bx - uy * 0.16, by + ux * 0.16), A(x2, y2),
+                            A(bx + uy * 0.16, by - ux * 0.16)], dxfattribs={"layer": "CHU"})
 
     def dim(p1, p2, loc, rot):
         msp.add_linear_dim(base=A(*loc), p1=A(*p1), p2=A(*p2), angle=rot, dimstyle=dn,
@@ -88,7 +97,7 @@ def draw(doc, data, xr=-10.0, ym=148.5):
         for bx in (-1, 1):
             for by in (-1, 1):
                 msp.add_circle(A(cx + bx * o, cy + by * o), r, dxfattribs={"layer": "CHU"})
-        tx(f"TRỤ {q}: {name}", xc, yc - B - ml - 0.35)
+        tx(f"TRỤ {q}: {name}", xc, yc + sy * (B + ml + 0.3))           # phía ngoài bản đế (khe giữa 2 trụ có thể hẹp)
         xs_ax.add(round(sx * T, 6))
         ys_ax.add(round(sy * T, 6))
     for x in sorted(xs_ax) + [0.0]:
@@ -103,7 +112,32 @@ def draw(doc, data, xr=-10.0, ym=148.5):
                                for t in range(0, 91, 10)]
         hh = msp.add_hatch(color=256, dxfattribs={"layer": "CHU"})
         hh.paths.add_polyline_path(pts, is_closed=True)
-    tx("TIM MÓNG", 0.25, 0.25, al=TextEntityAlignment.LEFT)
+    ht = int(data.get("HT", 0))
+    w = cad.txtw(T_AXIS, H_TXT)                         # ghi chú tim móng có đường dẫn, như tờ in
+    sg = 1.0 if ht in model.HT_BISECT else -1.0          # có phân giác (sang trái) -> ghi phía dưới bên phải
+    msp.add_lwpolyline([A(0.0, 0.0), A(sg * 0.3, -sg * 0.47), A(sg * (0.4 + w), -sg * 0.47)], dxfattribs={"layer": "CHU"})
+    tx(T_AXIS, sg * 0.39 - (w if sg < 0 else 0.0), -sg * 0.47 + 0.09, al=TextEntityAlignment.LEFT)
+    # hướng tuyến, hướng phân giác - cùng quy tắc mặt bằng tờ in (sheet1.draw_route), kích thước thật
+    lh = min((g.bt + g.tp) / 2 + g.Bh for _, g, _ in ps)                 # tới mép bản đế
+    lx = min((g.bt + g.tp) / 2 + 0.6 * g.Bh for _, g, _ in ps)           # phân giác: quá khe hở, chưa tới mép
+    wr = cad.txtw(T_ROUTE, H_TXT)
+    a = max(0.3 + wr / 2, min(0.5 * lh, lh - 0.24 - wr / 2))
+    if ht in model.HT_ANGLE:
+        dlt = math.radians(10.0)
+        sn, cs = math.sin(dlt), math.cos(dlt)
+        vee(0.0, 0.0, -lh * sn, lh * cs)
+        vee(0.0, 0.0, -lh * sn, -lh * cs)
+        tx(T_ROUTE, -a * sn - 0.24 * cs, a * cs - 0.24 * sn, rot=100.0)
+    elif ht == 2:
+        vee(0.0, 0.0, 0.0, -lh)
+        tx(T_ROUTE, -0.24, -a, rot=90.0)
+    else:
+        vee(0.0, 0.0, 0.0, -lh)
+        vee(0.0, 0.0, 0.0, lh)
+        tx(T_ROUTE, -0.24, a, rot=90.0)
+    if ht in model.HT_BISECT:
+        vee(0.0, 0.0, -lx, 0.0)
+        tx(T_BISECT, -lx + 0.25, 0.16, al=TextEntityAlignment.LEFT)
     # kích thước: mép bản đế - tim cột - tim cột - mép bản đế, tổng (dưới và trái)
     for axis in (0, 1):
         cs = sorted({round(c, 6) for c in (xs_ax if axis == 0 else ys_ax)})

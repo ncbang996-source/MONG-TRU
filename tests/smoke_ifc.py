@@ -55,5 +55,13 @@ for nm, data in (("d112", p), ("mix", mp)):
     assert len(plan) == 4 and not any(e.dxf.handle in ins for e in plan)
     xs = [e.dxf.insert.x for e in plan]
     assert max(xs) < 0                                          # bên trái tờ 1
+    out = [e.dxf.text for e in r.doc.modelspace().query("TEXT") if e.dxf.handle not in ins]
+    assert out.count("HƯỚNG TUYẾN") == 1 and out.count("HƯỚNG PHÂN GIÁC") == (1 if int(data["HT"]) in model.HT_BISECT else 0)
+# mặt bằng 1:1: hướng tuyến, phân giác theo hình thức cột (như mặt bằng tờ in)
+for ht in range(5):
+    r = export.build(dict(p, HT=ht))
+    ins = {h for hs in r.handles for h in hs}
+    out = [e.dxf.text for e in r.doc.modelspace().query("TEXT") if e.dxf.handle not in ins]
+    assert out.count("HƯỚNG TUYẾN") == 1 and out.count("HƯỚNG PHÂN GIÁC") == (ht in model.HT_BISECT), (ht, out)
     print(f"  {nm}: {len(rows)} thực thể IFC, {cnt['IFCREINFORCINGBAR']} nhóm thép, {os.path.getsize(f) // 1024} KB")
 print("OK - IFC, 3D, mat bang 1:1")
