@@ -97,13 +97,24 @@ def draw(doc, data, xr=-10.0, ym=148.5):
         for bx in (-1, 1):
             for by in (-1, 1):
                 msp.add_circle(A(cx + bx * o, cy + by * o), r, dxfattribs={"layer": "CHU"})
-        tx(f"TRỤ {q}: {name}", xc, yc + sy * (B + ml + 0.3))           # phía ngoài bản đế (khe giữa 2 trụ có thể hẹp)
+        tx(f"TRỤ {q}: {name}", xc, yc + sy * (B + ml + 0.2))           # phía ngoài bản đế (khe giữa 2 trụ có thể hẹp)
         xs_ax.add(round(sx * T, 6))
         ys_ax.add(round(sy * T, 6))
-    for x in sorted(xs_ax) + [0.0]:
-        ln("TRUC", x, -e, x, e)
-    for y in sorted(ys_ax) + [0.0]:
-        ln("TRUC", -e, y, e, y)
+    ln("TRUC", 0.0, -e, 0.0, e)                                          # chỉ trục qua tim móng
+    ln("TRUC", -e, 0.0, e, 0.0)
+    # đường bao đền bù: cách mép bê tông móng (bản đế) 0.5 m - cùng cạnh với khối lượng (model.den_bu)
+    if "TYPES" in data:
+        from .lech import model as lm
+        a_db = lm.den_bu(data)
+    else:
+        a_db = model.den_bu(data)
+    if "MB_DASH_M" not in doc.linetypes:
+        doc.linetypes.add("MB_DASH_M", pattern=[0.3, 0.2, -0.1], description="Net dut (m) __ __ __")
+    hb = a_db / 2
+    msp.add_lwpolyline([A(-hb, -hb), A(hb, -hb), A(hb, hb), A(-hb, hb)], close=True,
+                       dxfattribs={"layer": "HINH THUC", "linetype": "MB_DASH_M"})
+    tx(f"ĐƯỜNG BAO ĐỀN BÙ (CÁCH MÉP BÊ TÔNG MÓNG 0.5 m): {a_db:.2f} x {a_db:.2f} = {a_db * a_db:.2f} m²",
+       0.0, e + 0.25)
     # tim móng
     rc = 0.15
     msp.add_circle(A(0.0, 0.0), rc, dxfattribs={"layer": "CHU"})
@@ -152,5 +163,8 @@ def draw(doc, data, xr=-10.0, ym=148.5):
                 else:
                     dim((-ext, a), (-ext, b), (-off, 0.0), 90)
     tx("MẶT BẰNG MÓNG - TỶ LỆ 1:1 (ĐƠN VỊ BẢN VẼ: m, KÍCH THƯỚC GHI: mm)", 0.0, -e - 2.2, h=0.3, bold=True)
-    tx("Gốc toạ độ tại tim móng; trục X, Y theo tim cột", 0.0, -e - 2.75)
+    tx(f"CỘT {model.HT_NAMES[int(data.get('HT', 0))]} {data.get('COT', '')}".strip(), 0.0, -e - 2.75, h=0.25)
+    tx(f"MÓNG {data.get('TENMONG') or (lm.type_name(data) if 'TYPES' in data else model.type_name(data))}",
+       0.0, -e - 3.15, h=0.25)
+    tx("Gốc toạ độ tại tim móng", 0.0, -e - 3.55)
     return ox, oy

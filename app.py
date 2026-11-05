@@ -7,15 +7,15 @@ from __future__ import annotations
 import copy
 import json
 import os
+import queue
 import sys
 import threading
 import tkinter as tk
 import traceback
 from tkinter import filedialog, messagebox, ttk
 
-from mongtru import _meta, cad, export, frame, ifc, kl_excel, model
+from mongtru import _meta, batch, cad, export, frame, model
 from mongtru.lech import export as lexport
-from mongtru.lech import kl_excel as lkl
 from mongtru.lech import model as lmodel
 from mongtru.lech import ui as lui
 from mongtru.ui3d import View3D
@@ -280,6 +280,7 @@ class App(tk.Tk):
         g1 = group("Dữ liệu")
         btn(g1, "Mở Excel...", self.pick_excel)
         btn(g1, "⟳ Đọc lại", lambda: self.read_excel(self.xls))
+        btn(g1, "Thư mục dự án...", lambda: BatchDialog(self))
         g2 = group("Khung tên")
         btn(g2, "Nạp khung tên...", self.pick_frame)
         btn(g2, "⚙ Cấu hình...", self.edit_fields)
@@ -838,21 +839,10 @@ class App(tk.Tk):
 
     def _write(self, kind, f):
         """Ghi 1 loại file từ bản vẽ đã dựng (self.res, self.pdf)."""
-        if kind == "pdf":
-            with open(f, "wb") as fh:
-                fh.write(self.pdf)
-        elif kind == "dxf":
-            export.save_dxf(self.res, f)
-        elif kind == "xlsx":
-            if self.xls and os.path.abspath(f) == os.path.abspath(self.xls):
-                raise OSError("Không được ghi đè lên file Excel đầu vào.")
-            mp = getattr(self.res, "params", None)
-            if mp is not None and "TYPES" in mp:
-                lkl.export(mp, lexport.geos(mp), f)
-            else:
-                kl_excel.export(self.res.geo.p, self.res.geo, f)
-        elif kind == "ifc":
-            ifc.export(getattr(self.res, "params", None) or self.res.geo.p, f)
+        if kind == "xlsx" and self.xls and os.path.abspath(f) == os.path.abspath(self.xls):
+            raise OSError("Không được ghi đè lên file Excel đầu vào.")
+        self.res.params = getattr(self.res, "params", None) or self.res.geo.p
+        batch.write(self.res, kind, f, self.pdf)
 
     def export_ifc(self):
         def go():
@@ -1307,7 +1297,7 @@ class App(tk.Tk):
             p = {k: v for k, v in p.items() if k in model.default_params()}
         save_settings({"xls": self.xls, "frame": self.frame_path, "fields": self.fields,
                        "auto": self.v_auto.get(), "params": p, "mixed": mp,
-                       "export_all": self.st.get("export_all")})
+                       "export_all": self.st.get("export_all"), "batch": self.st.get("batch")})
         self.destroy()
 
 
@@ -1320,6 +1310,184 @@ def pdf_images(data, dpi=150):
             pix = pg.get_pixmap(dpi=dpi)
             out.append(Image.frombytes("RGB", (pix.width, pix.height), pix.samples))
     return out
+
+
+class BatchDialog(tk.Toplevel):
+    """Thư mục dự án: danh sách file Excel, mở từng file, xuất bản vẽ / file đồng loạt (chạy nền)."""
+
+    def __init__(self, app: App):
+        super().__init__(app)
+        self.app = app
+        self.title("Thư mục dự án - xuất đồng loạt")
+        self.transient(app)
+        self.geometry("880x600")
+        self.minsize(640, 420)
+        cfg = app.st.get("batch") or {}
+        f = ttk.Frame(self, padding=10)
+        f.pack(fill="both", expand=True)
+        f.columnconfigure(1, weight=1)
+        f.rowconfigure(2, weight=1)
+        ttk.Label(f, text="Thư mục dự án").grid(row=0, column=0, sticky="w")
+        d0 = cfg.get("dir") or (os.path.dirname(app.xls) if app.xls else "")
+        self.v_dir = tk.StringVar(value=d0)
+        ttk.Entry(f, textvariable=self.v_dir).grid(row=0, column=1, sticky="we", padx=4)
+        ttk.Button(f, text="Chọn...", command=self.pick_dir).grid(row=0, column=2)
+        self.v_sub = tk.BooleanVar(value=bool(cfg.get("sub")))
+        bar = ttk.Frame(f)
+        bar.grid(row=1, column=0, columnspan=3, sticky="we", pady=(6, 4))
+        ttk.Checkbutton(bar, text="Gồm thư mục con", variable=self.v_sub, command=self.scan).pack(side="left")
+        ttk.Button(bar, text="⟳ Tải lại danh sách", command=self.scan).pack(side="left", padx=6)
+        ttk.Button(bar, text="Chọn tất cả", command=lambda: self.tv.selection_set(self.tv.get_children())).pack(
+            side="left")
+        ttk.Button(bar, text="Bỏ chọn", command=lambda: self.tv.selection_set(())).pack(side="left", padx=4)
+        ttk.Button(bar, text="Mở file đang chọn", command=self.open_sel).pack(side="left")
+        cols = ("loai", "tt")
+        self.tv = ttk.Treeview(f, columns=cols, selectmode="extended")
+        self.tv.heading("#0", text="File Excel (chọn nhiều: Ctrl / Shift + nhấp; nhấp đúp: mở)")
+        self.tv.heading("loai", text="Loại")
+        self.tv.heading("tt", text="Trạng thái")
+        self.tv.column("#0", width=420)
+        self.tv.column("loai", width=110, stretch=False)
+        self.tv.column("tt", width=300)
+        self.tv.grid(row=2, column=0, columnspan=3, sticky="nsew")
+        sb = ttk.Scrollbar(f, orient="vertical", command=self.tv.yview)
+        sb.grid(row=2, column=3, sticky="ns")
+        self.tv.configure(yscrollcommand=sb.set)
+        self.tv.bind("<Double-1>", lambda e: self.open_sel())
+        kf = ttk.LabelFrame(f, text="Loại file xuất", padding=6)
+        kf.grid(row=3, column=0, columnspan=3, sticky="we", pady=(8, 4))
+        sel = cfg.get("kinds") or app.st.get("export_all") or [k for k, *_ in batch.KINDS]
+        self.v_k = {}
+        for i, (k, lbl, ext) in enumerate(batch.KINDS):
+            v = tk.BooleanVar(value=k in sel)
+            ttk.Checkbutton(kf, text=f"{lbl} (*{ext})", variable=v).grid(row=i // 2, column=i % 2, sticky="w",
+                                                                         padx=(0, 20))
+            self.v_k[k] = v
+        ttk.Label(f, text="Thư mục xuất").grid(row=4, column=0, sticky="w")
+        self.v_out = tk.StringVar(value=cfg.get("out") or "")
+        ttk.Entry(f, textvariable=self.v_out).grid(row=4, column=1, sticky="we", padx=4)
+        ttk.Button(f, text="Chọn...", command=self.pick_out).grid(row=4, column=2)
+        ttk.Label(f, text="(để trống = thư mục con XUAT trong thư mục dự án; tên file = tên file Excel; dùng khung "
+                          "tên, cấu hình khung và vị trí đã sắp xếp của từng file như khi mở trong app)",
+                  wraplength=820, justify="left", foreground="#555").grid(row=5, column=0, columnspan=3, sticky="w")
+        bot = ttk.Frame(f)
+        bot.grid(row=6, column=0, columnspan=3, sticky="we", pady=(8, 0))
+        self.pb = ttk.Progressbar(bot, mode="determinate")
+        self.pb.pack(side="left", fill="x", expand=True)
+        self.b_run = ttk.Button(bot, text="Xuất đồng loạt", command=self.run)
+        self.b_run.pack(side="left", padx=6)
+        self.b_stop = ttk.Button(bot, text="Dừng", command=self.stop, state="disabled")
+        self.b_stop.pack(side="left")
+        ttk.Button(bot, text="Đóng", command=self.close).pack(side="left", padx=(6, 0))
+        self.protocol("WM_DELETE_WINDOW", self.close)
+        self.files, self._stop, self._q, self._busy = [], False, None, False
+        self.scan()
+
+    def _save(self):
+        self.app.st["batch"] = {"dir": self.v_dir.get().strip(), "sub": self.v_sub.get(),
+                                "out": self.v_out.get().strip(), "kinds": [k for k, v in self.v_k.items() if v.get()]}
+
+    def pick_dir(self):
+        d = filedialog.askdirectory(parent=self, title="Chọn thư mục dự án", initialdir=self.v_dir.get() or None)
+        if d:
+            self.v_dir.set(d)
+            self.scan()
+
+    def pick_out(self):
+        d = filedialog.askdirectory(parent=self, title="Chọn thư mục xuất",
+                                    initialdir=self.v_out.get() or self.v_dir.get() or None)
+        if d:
+            self.v_out.set(d)
+
+    def scan(self):
+        if self._busy:
+            return
+        self.tv.delete(*self.tv.get_children())
+        d = self.v_dir.get().strip()
+        self.files = batch.find_excel(d, self.v_sub.get()) if d and os.path.isdir(d) else []
+        for i, f in enumerate(self.files):
+            try:
+                kind = "Móng 2 loại" if lmodel.detect(f) else "4 trụ"
+            except Exception:
+                kind = "?"
+            self.tv.insert("", "end", iid=str(i), text=os.path.relpath(f, d), values=(kind, ""))
+        self.tv.selection_set(self.tv.get_children())
+        self.pb.configure(value=0, maximum=max(1, len(self.files)))
+
+    def open_sel(self):
+        s = self.tv.selection()
+        if s and not self._busy:
+            self._save()
+            self.app.read_excel(self.files[int(s[0])])
+
+    def stop(self):
+        self._stop = True
+
+    def close(self):
+        if self._busy:
+            self._stop = True
+            return
+        self._save()
+        self.destroy()
+
+    def run(self):
+        sel = [int(i) for i in self.tv.selection()]
+        kinds = [k for k, v in self.v_k.items() if v.get()]
+        d = self.v_dir.get().strip()
+        if not sel or not kinds:
+            messagebox.showwarning(APP_NAME, "Chọn ít nhất 1 file Excel và 1 loại file xuất.", parent=self)
+            return
+        out = self.v_out.get().strip() or os.path.join(d, "XUAT")
+        self._save()
+        self._q = queue.Queue()
+        self._stop, self._busy = False, True
+        self.b_run.configure(state="disabled")
+        self.b_stop.configure(state="normal")
+        self.pb.configure(value=0, maximum=len(sel))
+        a = self.app
+        job = [(i, self.files[i], load_layout(self.files[i])) for i in sel]
+        args = (a.frame_path or None, copy.deepcopy(a.fields), dict(a.p))
+
+        def work():
+            ok = 0
+            for n, (i, f, offs) in enumerate(job):
+                if self._stop:
+                    self._q.put(("row", i, "Đã dừng"))
+                    continue
+                self._q.put(("row", i, "Đang xuất..."))
+                try:
+                    sub = os.path.relpath(os.path.dirname(f), d)
+                    res = batch.export_file(f, os.path.normpath(os.path.join(out, sub)), kinds, args[0], args[1],
+                                            offs, args[2])
+                    msg = f"Xong {len(res)} file" + (f" - cảnh báo: {' '.join(res.warn)[:120]}" if res.warn else "")
+                    ok += 1
+                except Exception as ex:
+                    msg = f"LỖI: {ex}"
+                self._q.put(("row", i, msg))
+                self._q.put(("prog", n + 1))
+            self._q.put(("end", ok, len(job), out))
+        threading.Thread(target=work, daemon=True).start()
+        self.after(100, self._poll)
+
+    def _poll(self):
+        try:
+            while True:
+                m = self._q.get_nowait()
+                if m[0] == "row":
+                    self.tv.set(str(m[1]), "tt", m[2])
+                    self.tv.see(str(m[1]))
+                elif m[0] == "prog":
+                    self.pb.configure(value=m[1])
+                else:
+                    self._busy = False
+                    self.b_run.configure(state="normal")
+                    self.b_stop.configure(state="disabled")
+                    self.app.l_msg.config(text=f"Xuất đồng loạt: {m[1]}/{m[2]} file Excel thành công -> {m[3]}")
+                    messagebox.showinfo(APP_NAME, f"Đã xuất {m[1]}/{m[2]} file Excel.\nThư mục: {m[3]}", parent=self)
+                    return
+        except queue.Empty:
+            pass
+        self.after(150, self._poll)
 
 
 class ExportAllDialog(tk.Toplevel):

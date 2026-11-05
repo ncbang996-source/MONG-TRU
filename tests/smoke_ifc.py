@@ -57,11 +57,20 @@ for nm, data in (("d112", p), ("mix", mp)):
     assert max(xs) < 0                                          # bên trái tờ 1
     out = [e.dxf.text for e in r.doc.modelspace().query("TEXT") if e.dxf.handle not in ins]
     assert out.count("HƯỚNG TUYẾN") == 1 and out.count("HƯỚNG PHÂN GIÁC") == (1 if int(data["HT"]) in model.HT_BISECT else 0)
+    # mặt bằng 1:1: chỉ 2 trục qua tim móng; đường bao đền bù nét đứt cách mép bản đế 0.5 m; tên cột, tên móng
+    tr = [e for e in r.doc.modelspace().query("LINE") if e.dxf.handle not in ins and e.dxf.layer == "TRUC"]
+    assert len(tr) == 2, len(tr)
+    bd = [e for e in r.doc.modelspace().query("LWPOLYLINE") if e.dxf.handle not in ins
+          and e.dxf.get("linetype") == "MB_DASH_M"]
+    a_db = lm.den_bu(data) if "TYPES" in data else model.den_bu(data)
+    xs_ = [pt[0] for pt in bd[0].get_points()]
+    assert len(bd) == 1 and abs(max(xs_) - min(xs_) - a_db) < 1e-9, (len(bd), a_db)
+    assert any(t.startswith("CỘT ") for t in out) and any(t.startswith("MÓNG ") for t in out), out
+    print(f"  {nm}: {len(rows)} thực thể IFC, {cnt['IFCREINFORCINGBAR']} nhóm thép, {os.path.getsize(f) // 1024} KB")
 # mặt bằng 1:1: hướng tuyến, phân giác theo hình thức cột (như mặt bằng tờ in)
 for ht in range(5):
     r = export.build(dict(p, HT=ht))
     ins = {h for hs in r.handles for h in hs}
     out = [e.dxf.text for e in r.doc.modelspace().query("TEXT") if e.dxf.handle not in ins]
     assert out.count("HƯỚNG TUYẾN") == 1 and out.count("HƯỚNG PHÂN GIÁC") == (ht in model.HT_BISECT), (ht, out)
-    print(f"  {nm}: {len(rows)} thực thể IFC, {cnt['IFCREINFORCINGBAR']} nhóm thép, {os.path.getsize(f) // 1024} KB")
 print("OK - IFC, 3D, mat bang 1:1")
