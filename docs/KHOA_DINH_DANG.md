@@ -41,3 +41,6 @@ nhánh này; lấy lại đúng mã nguồn lúc đó: `git checkout ban-on-dinh
   theo vị trí này.
 - Tag 5 và tag 6/7 đều đặt giữa khe hở 2 đai, xếp từ dưới lên (không đè tag 2, 4); leader ngang tag 6 di chuyển
   theo tag khi kéo.
+
+## Phiên bản 1.1.0 (người dùng yêu cầu)
+- Chỉ đổi giao diện (màu navy sậm, menu Xuất, mô tả) và số phiên bản; định dạng bản vẽ, khối lượng không đổi (`tests/regression.py` = 0 chỗ khác).

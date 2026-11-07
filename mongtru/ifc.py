@@ -8,7 +8,7 @@ import math
 import time
 import uuid
 
-from . import _meta, cad, model
+from . import __version__, _meta, cad, model
 from .geom import Geo
 from .view3d import COL, Scene
 
@@ -120,7 +120,7 @@ def export(data: dict, path: str):
     person = w("IFCPERSON($,$,'',$,$,$,$,$)")
     org = w(f"IFCORGANIZATION($,{s_('VE_MONGTRU')},$,$,$)")
     po = w(f"IFCPERSONANDORGANIZATION({person},{org},$)")
-    app = w(f"IFCAPPLICATION({org},'1.0.0',{s_('VE_MONGTRU - Vẽ móng trụ')},'VE_MONGTRU')")
+    app = w(f"IFCAPPLICATION({org},'{__version__}',{s_('VE_MONGTRU - Vẽ móng trụ')},'VE_MONGTRU')")
     oh = w(f"IFCOWNERHISTORY({po},{app},$,.NOCHANGE.,$,$,$,{now})")
     u_len = w("IFCSIUNIT(*,.LENGTHUNIT.,.MILLI.,.METRE.)")
     u_area = w("IFCSIUNIT(*,.AREAUNIT.,$,.SQUARE_METRE.)")
@@ -295,7 +295,7 @@ def export(data: dict, path: str):
     ts = time.strftime("%Y-%m-%dT%H:%M:%S")
     head = ("ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('ViewDefinition [ReferenceView_V1.2]'),'2;1');\n"
             f"FILE_NAME({s_(path.replace(chr(92), '/').split('/')[-1])},'{ts}',(''),({s_('VE_MONGTRU')}),"
-            "'VE_MONGTRU 1.0.0','VE_MONGTRU 1.0.0','');\nFILE_SCHEMA(('IFC4'));\nENDSEC;\nDATA;\n")
+            f"'VE_MONGTRU {__version__}','VE_MONGTRU {__version__}','');\nFILE_SCHEMA(('IFC4'));\nENDSEC;\nDATA;\n")
     body = "\n".join(f"#{i + 1}={r};" for i, r in enumerate(w.rows))
     with open(path, "w", encoding="ascii", newline="\n") as fh:
         fh.write(head + body + "\nENDSEC;\nEND-ISO-10303-21;\n")

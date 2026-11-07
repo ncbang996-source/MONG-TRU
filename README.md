@@ -1,6 +1,6 @@
 # VE_MONGTRU
 
-App Windows chạy offline, vẽ nhanh bản vẽ **móng trụ rời 4 trụ** (móng cột đường dây) từ file Excel. Kiến trúc và cách dùng giống app VE_MONGBANCOSUON / VE_MONGBANKOSUON.
+App Windows chạy offline, vẽ nhanh bản vẽ **móng trụ (4 trụ) dùng cho cột đường dây cao thế bằng thép hình** từ file Excel. Kiến trúc và cách dùng giống app VE_MONGBANCOSUON / VE_MONGBANKOSUON.
 
 ## Chức năng
 - **Đọc Excel:** lấy số liệu từ sheet `TONG HOP` (các ô liệt kê bên dưới). Đọc được cả `.xls` và `.xlsx` / `.xlsm`. Mỗi lần mở file, mọi thông số và lựa chọn (kể cả trình bày hố đào) về mặc định rồi mới đọc file (ô trống không giữ số của file trước, có cảnh báo). Tỷ lệ tờ 1 luôn tự chọn lại.
@@ -84,6 +84,11 @@ Mở file Excel có 2 khối "Móng:" ở sheet `TONG HOP` (mẫu `samples/N112-
 - **Khối lượng:** bê tông, lót, ván khuôn, thép = cộng 2 loại. Đào: mỗi trụ hố từ đáy lót lên mặt đất tại trụ đó; miệng hố 2 trụ cạnh nhau chạm nhau thì đào chung 1 hố, đáy bậc theo độ sâu từng trụ (tính theo lát cắt: tại mỗi cao độ, hố chung là hình chữ nhật bao các hố riêng có ở cao độ đó). Đắp = đào − lót − phần bê tông dưới mặt đất. Đền bù: Bt + max(b2 − b1 + Bm) + 1.
 - **Excel khối lượng:** sheet THONG SO 1 / KHOI LUONG 1 (loại 1), THONG SO 2 / KHOI LUONG 2 (loại 2) như file của bản 4 trụ giống nhau; sheet DAT (đào / đắp cả vị trí: công thức khi đào riêng và mặt đất 1 mức, còn lại là giá trị do chương trình tính - sửa thông số thì xuất lại); sheet TONG KE cho cả vị trí móng.
 - **3D:** 4 trụ đúng loại và cao độ.
+
+## Phiên bản
+- **1.1.0:** giao diện màu xanh navy sậm; các lựa chọn xuất gom vào menu sổ xuống "Xuất file" (PDF, DXF, Excel khối lượng, IFC, Tất cả...); sửa mô tả phần mềm. Gồm các chức năng thêm sau 1.0.0: khung tên khác mẫu, chữ PDF sửa được, cột néo thẳng / néo hãm, xuất IFC, mặt bằng 1:1 (m) trong DXF, thư mục dự án - xuất đồng loạt.
+- **1.0.0:** bản ổn định móng 4 trụ giống nhau (nhánh `ban-on-dinh-1.0.0`).
+- Số phiên bản: `mongtru/__init__.py` (`__version__`) và `version_info.txt` - chỉ đổi khi người dùng yêu cầu.
 
 ## Tải file .exe
 Vào tab **Actions** của repo, mở lần build mới nhất và tải mục **VE_MONGTRU-exe** ở phần *Artifacts*.

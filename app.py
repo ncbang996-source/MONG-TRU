@@ -14,15 +14,15 @@ import tkinter as tk
 import traceback
 from tkinter import filedialog, messagebox, ttk
 
-from mongtru import _meta, batch, cad, export, frame, model
+from mongtru import __version__, _meta, batch, cad, export, frame, model
 from mongtru.lech import export as lexport
 from mongtru.lech import model as lmodel
 from mongtru.lech import ui as lui
 from mongtru.ui3d import View3D
 
 APP_NAME = "VE_MONGTRU"
-APP_VER = "1.0.0"
-APP_DESC = "Móng trụ rời (4 trụ) cho móng cột đường dây cao thế bằng thép hình."
+APP_VER = __version__
+APP_DESC = "Móng trụ (4 trụ) dùng cho cột đường dây cao thế bằng thép hình."
 
 
 def settings_path():
@@ -107,11 +107,11 @@ TL_VALUES = [TL_AUTO, "10", "15", "20", "25", "30", "40", "50", "60", "75", "100
 # bảng màu giao diện - cảm hứng Yamaha XSR155: bình xăng bạc, yên da nâu, khung đen nhám, đèn hậu đỏ
 # (tên khoá giữ nguyên để các màn hình khác dùng chung: navy = đen nhám, blue = nâu da, green = xám than)
 C = {
-    "navy": "#1E1F22", "blue": "#8B5A33", "green": "#34373C", "orange": "#C98F5A", "red": "#C8202B",
-    "bg": "#E3E5E8", "bar": "#D3D6DA", "card": "#F7F7F8", "line": "#B3B7BD", "text": "#1E1F22",
-    "muted": "#5F646B", "stage": "#2B2D31",
+    "navy": "#0E1E3E", "blue": "#8B5A33", "green": "#1A3263", "orange": "#C98F5A", "red": "#C8202B",
+    "bg": "#E3E5E8", "bar": "#D3D6DA", "card": "#F7F7F8", "line": "#B3B7BD", "text": "#0E1E3E",
+    "muted": "#5F646B", "stage": "#14264A",
     "silver": "#C4C7CC", "chrome": "#E9EAEC", "stitch": "#D9A56B", "seat": "#6B4423",
-    "sections": ["#7A4B28", "#3A3E44", "#946036", "#4F545B", "#6B4423"],
+    "sections": ["#7A4B28", "#1A3263", "#946036", "#284777", "#6B4423"],
 }
 
 
@@ -292,11 +292,18 @@ class App(tk.Tk):
         ttk.Checkbutton(g3, text="Sắp xếp (kéo thả, phím mũi tên)", variable=self.v_arr, style="Bar.TCheckbutton",
                         command=self._redraw).pack(side="left", padx=(0, 6))
         g4 = group("Xuất")
-        btn(g4, "PDF", self.export_pdf, "Export")
-        btn(g4, "AutoCAD DXF", self.export_dxf, "Export")
-        btn(g4, "Excel khối lượng", self.export_xlsx, "Export")
-        btn(g4, "IFC (BIM)", self.export_ifc, "Export")
-        btn(g4, "Tất cả...", self.export_all, "Export")
+        # các lựa chọn xuất gom thành 1 menu sổ xuống
+        self.m_exp = tk.Menu(self, tearoff=0, background=C["card"], foreground=C["text"], font=f,
+                             activebackground=C["green"], activeforeground="#FFFFFF")
+        for lbl, cmd in (("PDF bản vẽ...", self.export_pdf), ("AutoCAD DXF...", self.export_dxf),
+                         ("Excel khối lượng...", self.export_xlsx), ("Mô hình IFC (BIM)...", self.export_ifc)):
+            self.m_exp.add_command(label=lbl, command=cmd)
+        self.m_exp.add_separator()
+        self.m_exp.add_command(label="Tất cả (chọn loại file)...", command=self.export_all)
+        self.b_exp = ttk.Button(g4, text="⭳  Xuất file  ▾", style="Export.TButton",
+                                command=lambda: self.m_exp.tk_popup(self.b_exp.winfo_rootx(),
+                                                                    self.b_exp.winfo_rooty() + self.b_exp.winfo_height()))
+        self.b_exp.pack(side="left")
 
         def flow(e=None):
             """Màn hình hẹp: các nhóm nút tự xuống dòng (không bị khuất)."""
@@ -397,7 +404,7 @@ class App(tk.Tk):
         self._cr = tk.Label(st, text=_meta.credit(), background=C["navy"], foreground=C["stitch"],
                             font=(f[0], f[1] - 1, "bold"), padx=10, pady=3)
         self._cr.pack(side="left")
-        tk.Frame(st, background="#4B4E54", width=1).pack(side="left", fill="y", pady=3)
+        tk.Frame(st, background="#2E4570", width=1).pack(side="left", fill="y", pady=3)
         self.l_msg = tk.Label(st, text=APP_DESC, background=C["navy"], foreground="#D6D8DC", anchor="w",
                               font=(f[0], f[1] - 1), padx=10, pady=3)
         self.l_msg.pack(side="left", fill="x")
@@ -977,7 +984,7 @@ class App(tk.Tk):
         cw, ch = self.pv.winfo_width(), self.pv.winfo_height()
         x0 = max(10, (cw - w) // 2)
         y0 = max(10, (ch - h) // 2)
-        self.pv.create_rectangle(x0 + 4, y0 + 4, x0 + w + 4, y0 + h + 4, fill="#101114", outline="", tags="bg")
+        self.pv.create_rectangle(x0 + 4, y0 + 4, x0 + w + 4, y0 + h + 4, fill="#081530", outline="", tags="bg")
         self.pv.create_rectangle(x0, y0, x0 + w, y0 + h, fill="#FFFFFF", outline="", tags="bg")
         self.pv.configure(scrollregion=(0, 0, max(cw, w + 20), max(ch, h + 20)))
         self._geom = (x0, y0, w / export.PAGE_W)
