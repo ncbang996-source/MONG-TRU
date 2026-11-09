@@ -154,6 +154,9 @@ class App(tk.Tk):
         if self.frame_path and not os.path.isfile(self.frame_path):
             self.frame_path = default_frame()
         self.fields = copy.deepcopy(self.st.get("fields") or frame.DEFAULT_FIELDS)
+        pj = self.st.get("project") or {}               # dự án đã mở lần trước (danh sách file Excel móng)
+        self.project = [f for f in (pj.get("files") or []) if isinstance(f, str) and os.path.isfile(f)]
+        self.proj_i = max(0, min(int(pj.get("i") or 0), len(self.project) - 1))
         self.vars: dict[str, tk.Variable] = {}
         self.pdf = None
         self.pages = []          # ảnh PIL từng trang
@@ -173,6 +176,7 @@ class App(tk.Tk):
         self._kjob = None            # gom các lần nhấn phím mũi tên thành 1 lần dựng lại / 1 lần hoàn tác
         self._build_ui()
         self._fill()
+        self._proj_refresh()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         for k in ("<Control-z>", "<Control-Z>"):
             self.bind_all(k, lambda e: self._undo_redo(True))
@@ -280,6 +284,7 @@ class App(tk.Tk):
         g1 = group("Dữ liệu")
         btn(g1, "Mở Excel...", self.pick_excel)
         btn(g1, "⟳ Đọc lại", lambda: self.read_excel(self.xls))
+        btn(g1, "Mở dự án...", self.open_project)
         btn(g1, "Thư mục dự án...", lambda: BatchDialog(self))
         g2 = group("Khung tên")
         btn(g2, "Nạp khung tên...", self.pick_frame)
@@ -300,6 +305,7 @@ class App(tk.Tk):
             self.m_exp.add_command(label=lbl, command=cmd)
         self.m_exp.add_separator()
         self.m_exp.add_command(label="Tất cả (chọn loại file)...", command=self.export_all)
+        self.m_exp.add_command(label="Xuất đồng loạt (dự án / thư mục)...", command=self.export_batch)
         self.b_exp = ttk.Button(g4, text="⭳  Xuất file  ▾", style="Export.TButton",
                                 command=lambda: self.m_exp.tk_popup(self.b_exp.winfo_rootx(),
                                                                     self.b_exp.winfo_rooty() + self.b_exp.winfo_height()))
@@ -321,6 +327,25 @@ class App(tk.Tk):
                 bar.configure(height=hb)
         bar.bind("<Configure>", flow)
         self.after(50, flow)
+
+        # thanh dự án (chỉ hiện khi đã mở dự án): chọn từng móng để xem, xuất đồng loạt
+        pj = tk.Frame(self, background=C["green"], padx=10, pady=4)
+        self._proj_bar = pj
+        tk.Label(pj, text="DỰ ÁN", background=C["green"], foreground=C["stitch"],
+                 font=(f[0], f[1], "bold")).pack(side="left", padx=(0, 8))
+        self.v_proj = tk.StringVar()
+        self.cb_proj = ttk.Combobox(pj, textvariable=self.v_proj, state="readonly", width=60)
+        self.cb_proj.pack(side="left")
+        self.cb_proj.bind("<<ComboboxSelected>>", lambda e: self.proj_go(self.cb_proj.current()))
+        for t, d in (("◀", -1), ("▶", 1)):
+            ttk.Button(pj, text=t, width=3, style="Small.TButton",
+                       command=lambda d=d: self.proj_go(self.proj_i + d)).pack(side="left", padx=(4, 0))
+        self.l_proj = tk.Label(pj, text="", background=C["green"], foreground="#FFFFFF", font=f)
+        self.l_proj.pack(side="left", padx=8)
+        ttk.Button(pj, text="Đóng dự án", style="Small.TButton", command=self.close_project).pack(side="right")
+        ttk.Button(pj, text="Xuất dự án (đồng loạt)...", style="Small.TButton",
+                   command=self.export_batch).pack(side="right", padx=6)
+        ttk.Button(pj, text="+ Thêm móng...", style="Small.TButton", command=self.add_to_project).pack(side="right")
 
         info = ttk.Frame(self, style="Bg.TFrame", padding=(10, 3))
         info.pack(side="top", fill="x")
@@ -682,6 +707,64 @@ class App(tk.Tk):
             pass
 
     # ---------------------------------------------------------- hành động
+    # ------------------------------------------------------------ dự án (nhiều móng)
+    def open_project(self):
+        fs = filedialog.askopenfilenames(title="Mở dự án - chọn đồng loạt các file Excel móng",
+                                         filetypes=[("Excel", "*.xls *.xlsx *.xlsm")],
+                                         initialdir=os.path.dirname(self.xls) if self.xls else None)
+        if fs:
+            self.set_project(list(fs))
+
+    def add_to_project(self):
+        fs = filedialog.askopenfilenames(title="Thêm móng vào dự án", filetypes=[("Excel", "*.xls *.xlsx *.xlsm")],
+                                         initialdir=os.path.dirname(self.project[0]) if self.project else None)
+        if fs:
+            self.set_project(self.project + [f for f in fs if f not in self.project], self.proj_i, load=False)
+
+    def set_project(self, files, i=0, load=True):
+        """Dự án = danh sách file Excel móng (thứ tự đã chọn, bỏ trùng). load: mở móng thứ i."""
+        seen, out = set(), []
+        for f in files:
+            k = os.path.normcase(os.path.abspath(f))
+            if k not in seen and os.path.isfile(f):
+                seen.add(k)
+                out.append(os.path.abspath(f))
+        self.project = out
+        self.proj_i = max(0, min(i, len(out) - 1))
+        self._proj_refresh()
+        if out and load:
+            self.read_excel(out[self.proj_i])
+
+    def _proj_refresh(self):
+        if not self.project:
+            self._proj_bar.pack_forget()
+            return
+        self.cb_proj.config(values=[f"{k + 1}. {os.path.basename(f)}" for k, f in enumerate(self.project)])
+        self.cb_proj.current(self.proj_i)
+        self.l_proj.config(text=f"{self.proj_i + 1}/{len(self.project)} móng")
+        if not self._proj_bar.winfo_ismapped():
+            self._proj_bar.pack(side="top", fill="x", before=self._info_bar)
+
+    def proj_go(self, i):
+        if not self.project:
+            return
+        i = max(0, min(i, len(self.project) - 1))
+        f = self.project[i]
+        if not os.path.isfile(f):
+            messagebox.showerror(APP_NAME, f"Không tìm thấy file:\n{f}")
+            return
+        self.proj_i = i
+        self._proj_refresh()
+        if os.path.abspath(self.xls or "") != f:
+            self.read_excel(f)
+
+    def close_project(self):
+        self.project, self.proj_i = [], 0
+        self._proj_refresh()
+
+    def export_batch(self):
+        BatchDialog(self, self.project or None)
+
     def pick_excel(self):
         f = filedialog.askopenfilename(title="Chọn file Excel (sheet TONG HOP)",
                                        filetypes=[("Excel", "*.xls *.xlsx *.xlsm"), ("Tất cả", "*.*")],
@@ -716,6 +799,10 @@ class App(tk.Tk):
         self._undo.clear()
         self._redo.clear()
         self._fill()
+        ap = os.path.abspath(path)
+        if self.project and ap in self.project:
+            self.proj_i = self.project.index(ap)
+            self._proj_refresh()
         msg = f"Đã đọc {os.path.basename(path)}." + ("  Móng 2 loại." if mp else "")
         if warn:
             msg += "  Cảnh báo: " + " ".join(warn)
@@ -1304,7 +1391,8 @@ class App(tk.Tk):
             p = {k: v for k, v in p.items() if k in model.default_params()}
         save_settings({"xls": self.xls, "frame": self.frame_path, "fields": self.fields,
                        "auto": self.v_auto.get(), "params": p, "mixed": mp,
-                       "export_all": self.st.get("export_all"), "batch": self.st.get("batch")})
+                       "export_all": self.st.get("export_all"), "batch": self.st.get("batch"),
+                       "project": {"files": self.project, "i": self.proj_i}})
         self.destroy()
 
 
@@ -1322,10 +1410,11 @@ def pdf_images(data, dpi=150):
 class BatchDialog(tk.Toplevel):
     """Thư mục dự án: danh sách file Excel, mở từng file, xuất bản vẽ / file đồng loạt (chạy nền)."""
 
-    def __init__(self, app: App):
+    def __init__(self, app: App, files=None):
         super().__init__(app)
         self.app = app
-        self.title("Thư mục dự án - xuất đồng loạt")
+        self.fixed = list(files) if files else None          # dự án: danh sách file cố định (không quét thư mục)
+        self.title("Dự án - xuất đồng loạt" if self.fixed else "Thư mục dự án - xuất đồng loạt")
         self.transient(app)
         self.geometry("880x600")
         self.minsize(640, 420)
@@ -1334,20 +1423,26 @@ class BatchDialog(tk.Toplevel):
         f.pack(fill="both", expand=True)
         f.columnconfigure(1, weight=1)
         f.rowconfigure(2, weight=1)
-        ttk.Label(f, text="Thư mục dự án").grid(row=0, column=0, sticky="w")
         d0 = cfg.get("dir") or (os.path.dirname(app.xls) if app.xls else "")
         self.v_dir = tk.StringVar(value=d0)
-        ttk.Entry(f, textvariable=self.v_dir).grid(row=0, column=1, sticky="we", padx=4)
-        ttk.Button(f, text="Chọn...", command=self.pick_dir).grid(row=0, column=2)
         self.v_sub = tk.BooleanVar(value=bool(cfg.get("sub")))
         bar = ttk.Frame(f)
         bar.grid(row=1, column=0, columnspan=3, sticky="we", pady=(6, 4))
-        ttk.Checkbutton(bar, text="Gồm thư mục con", variable=self.v_sub, command=self.scan).pack(side="left")
-        ttk.Button(bar, text="⟳ Tải lại danh sách", command=self.scan).pack(side="left", padx=6)
+        if self.fixed:
+            ttk.Label(f, text=f"Dự án: {len(self.fixed)} móng - thư mục gốc: {self.root()}").grid(
+                row=0, column=0, columnspan=3, sticky="w")
+        else:
+            ttk.Label(f, text="Thư mục dự án").grid(row=0, column=0, sticky="w")
+            ttk.Entry(f, textvariable=self.v_dir).grid(row=0, column=1, sticky="we", padx=4)
+            ttk.Button(f, text="Chọn...", command=self.pick_dir).grid(row=0, column=2)
+            ttk.Checkbutton(bar, text="Gồm thư mục con", variable=self.v_sub, command=self.scan).pack(side="left")
+            ttk.Button(bar, text="⟳ Tải lại danh sách", command=self.scan).pack(side="left", padx=6)
         ttk.Button(bar, text="Chọn tất cả", command=lambda: self.tv.selection_set(self.tv.get_children())).pack(
             side="left")
         ttk.Button(bar, text="Bỏ chọn", command=lambda: self.tv.selection_set(())).pack(side="left", padx=4)
         ttk.Button(bar, text="Mở file đang chọn", command=self.open_sel).pack(side="left")
+        if not self.fixed:
+            ttk.Button(bar, text="Nhập các file đang chọn vào dự án", command=self.to_project).pack(side="left", padx=4)
         cols = ("loai", "tt")
         self.tv = ttk.Treeview(f, columns=cols, selectmode="extended")
         self.tv.heading("#0", text="File Excel (chọn nhiều: Ctrl / Shift + nhấp; nhấp đúp: mở)")
@@ -1374,7 +1469,7 @@ class BatchDialog(tk.Toplevel):
         self.v_out = tk.StringVar(value=cfg.get("out") or "")
         ttk.Entry(f, textvariable=self.v_out).grid(row=4, column=1, sticky="we", padx=4)
         ttk.Button(f, text="Chọn...", command=self.pick_out).grid(row=4, column=2)
-        ttk.Label(f, text="(để trống = thư mục con XUAT trong thư mục dự án; tên file = tên file Excel; dùng khung "
+        ttk.Label(f, text="(để trống = thư mục con XUAT trong thư mục dự án / thư mục gốc của dự án; tên file = tên file Excel; dùng khung "
                           "tên, cấu hình khung và vị trí đã sắp xếp của từng file như khi mở trong app)",
                   wraplength=820, justify="left", foreground="#555").grid(row=5, column=0, columnspan=3, sticky="w")
         bot = ttk.Frame(f)
@@ -1391,6 +1486,11 @@ class BatchDialog(tk.Toplevel):
         self.scan()
 
     def _save(self):
+        if self.fixed:                                     # dự án: chỉ nhớ loại file, thư mục xuất
+            b = dict(self.app.st.get("batch") or {})
+            b.update({"out": self.v_out.get().strip(), "kinds": [k for k, v in self.v_k.items() if v.get()]})
+            self.app.st["batch"] = b
+            return
         self.app.st["batch"] = {"dir": self.v_dir.get().strip(), "sub": self.v_sub.get(),
                                 "out": self.v_out.get().strip(), "kinds": [k for k, v in self.v_k.items() if v.get()]}
 
@@ -1406,12 +1506,31 @@ class BatchDialog(tk.Toplevel):
         if d:
             self.v_out.set(d)
 
+    def root(self):
+        """Thư mục gốc: thư mục dự án, hoặc thư mục chung của các file trong dự án."""
+        if self.fixed:
+            try:
+                return os.path.commonpath([os.path.dirname(os.path.abspath(f)) for f in self.fixed])
+            except ValueError:                             # khác ổ đĩa
+                return os.path.dirname(os.path.abspath(self.fixed[0]))
+        return self.v_dir.get().strip()
+
+    def to_project(self):
+        s = self.tv.selection()
+        if s and not self._busy:
+            self._save()
+            self.app.set_project([self.files[int(i)] for i in s])
+            self.destroy()
+
     def scan(self):
         if self._busy:
             return
         self.tv.delete(*self.tv.get_children())
-        d = self.v_dir.get().strip()
-        self.files = batch.find_excel(d, self.v_sub.get()) if d and os.path.isdir(d) else []
+        d = self.root()
+        if self.fixed:
+            self.files = [f for f in self.fixed if os.path.isfile(f)]
+        else:
+            self.files = batch.find_excel(d, self.v_sub.get()) if d and os.path.isdir(d) else []
         for i, f in enumerate(self.files):
             try:
                 kind = "Móng 2 loại" if lmodel.detect(f) else "4 trụ"
@@ -1425,7 +1544,11 @@ class BatchDialog(tk.Toplevel):
         s = self.tv.selection()
         if s and not self._busy:
             self._save()
-            self.app.read_excel(self.files[int(s[0])])
+            f = self.files[int(s[0])]
+            if self.fixed and f in self.app.project:
+                self.app.proj_go(self.app.project.index(f))
+            else:
+                self.app.read_excel(f)
 
     def stop(self):
         self._stop = True
@@ -1440,7 +1563,7 @@ class BatchDialog(tk.Toplevel):
     def run(self):
         sel = [int(i) for i in self.tv.selection()]
         kinds = [k for k, v in self.v_k.items() if v.get()]
-        d = self.v_dir.get().strip()
+        d = self.root()
         if not sel or not kinds:
             messagebox.showwarning(APP_NAME, "Chọn ít nhất 1 file Excel và 1 loại file xuất.", parent=self)
             return

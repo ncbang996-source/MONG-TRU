@@ -36,10 +36,12 @@ CELL_RLAYERS = "K28"                               # "02 lớp"
 CELL_NPIER = "C24"                                 # số trụ móng
 CELL_DP = "H29"                                    # dự phòng thép (%)
 
-HT_NAMES = ["ĐỠ", "NÉO GÓC", "NÉO DỪNG", "NÉO THẲNG", "NÉO HÃM"]   # thêm loại mới vào cuối (giữ số cũ)
-HT_UI = ["Đỡ", "Néo góc", "Néo dừng", "Néo thẳng", "Néo hãm"]
+HT_NAMES = ["ĐỠ", "NÉO GÓC", "NÉO DỪNG", "NÉO THẲNG", "NÉO HÃM", "NÉO GÓC 90°"]   # thêm loại mới vào cuối (giữ số cũ)
+HT_UI = ["Đỡ", "Néo góc", "Néo dừng", "Néo thẳng", "Néo hãm", "Néo góc 90°"]
 HT_ANGLE = (1, 4)            # hướng tuyến 2 tia lệch 10° + phân giác: néo góc, néo hãm
 HT_BISECT = (1, 3, 4)        # có mũi tên phân giác (sang trái): néo góc, néo thẳng, néo hãm
+HT_90 = 5                    # néo góc 90°: 2 mũi tên hướng tuyến vuông góc - lên (+Y) và sang trái (−X), không phân giác
+HT_TIM_BR = (1, 3, 4, 5)     # mũi tên chiếm góc trên-trái -> ghi chú tim móng phía dưới bên phải
 SCALES = [50, 75, 100, 125, 150, 200, 250]
 SLOPE_DRAW = 0.5          # hệ số mở mái THỂ HIỆN trên bản vẽ (C18 chỉ dùng tính khối lượng)
 TL = 0.1                  # dày bê tông lót (m)
@@ -91,6 +93,8 @@ def ht_from_string(s: str) -> int:
     u = s.upper()
     if "DỪNG" in u or "DUNG" in u:
         return 2
+    if "90" in u and ("GÓC" in u or "GOC" in u or "NÉO" in u or "NEO" in u):
+        return HT_90
     if "THẲNG" in u or "THANG" in u:
         return 3
     if "HÃM" in u or "HAM" in u:

@@ -68,9 +68,9 @@ for nm, data in (("d112", p), ("mix", mp)):
     assert any(t.startswith("CỘT ") for t in out) and any(t.startswith("MÓNG ") for t in out), out
     print(f"  {nm}: {len(rows)} thực thể IFC, {cnt['IFCREINFORCINGBAR']} nhóm thép, {os.path.getsize(f) // 1024} KB")
 # mặt bằng 1:1: hướng tuyến, phân giác theo hình thức cột (như mặt bằng tờ in)
-for ht in range(5):
+for ht in range(len(model.HT_NAMES)):
     r = export.build(dict(p, HT=ht))
     ins = {h for hs in r.handles for h in hs}
     out = [e.dxf.text for e in r.doc.modelspace().query("TEXT") if e.dxf.handle not in ins]
-    assert out.count("HƯỚNG TUYẾN") == 1 and out.count("HƯỚNG PHÂN GIÁC") == (ht in model.HT_BISECT), (ht, out)
+    assert out.count("HƯỚNG TUYẾN") == (2 if ht == model.HT_90 else 1) and out.count("HƯỚNG PHÂN GIÁC") == (ht in model.HT_BISECT), (ht, out)
 print("OK - IFC, 3D, mat bang 1:1")

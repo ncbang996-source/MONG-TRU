@@ -125,7 +125,7 @@ def draw(doc, data, xr=-10.0, ym=148.5):
         hh.paths.add_polyline_path(pts, is_closed=True)
     ht = int(data.get("HT", 0))
     w = cad.txtw(T_AXIS, H_TXT)                         # ghi chú tim móng có đường dẫn, như tờ in
-    sg = 1.0 if ht in model.HT_BISECT else -1.0          # có phân giác (sang trái) -> ghi phía dưới bên phải
+    sg = 1.0 if ht in model.HT_TIM_BR else -1.0          # mũi tên sang trái -> ghi phía dưới bên phải
     msp.add_lwpolyline([A(0.0, 0.0), A(sg * 0.3, -sg * 0.47), A(sg * (0.4 + w), -sg * 0.47)], dxfattribs={"layer": "CHU"})
     tx(T_AXIS, sg * 0.39 - (w if sg < 0 else 0.0), -sg * 0.47 + 0.09, al=TextEntityAlignment.LEFT)
     # hướng tuyến, hướng phân giác - cùng quy tắc mặt bằng tờ in (sheet1.draw_route), kích thước thật
@@ -142,6 +142,11 @@ def draw(doc, data, xr=-10.0, ym=148.5):
     elif ht == 2:
         vee(0.0, 0.0, 0.0, -lh)
         tx(T_ROUTE, -0.24, -a, rot=90.0)
+    elif ht == model.HT_90:                                      # néo góc 90°: lên và sang trái, không phân giác
+        vee(0.0, 0.0, 0.0, lh)
+        tx(T_ROUTE, -0.24, a, rot=90.0)
+        vee(0.0, 0.0, -lh, 0.0)
+        tx(T_ROUTE, -a, 0.24)
     else:
         vee(0.0, 0.0, 0.0, -lh)
         vee(0.0, 0.0, 0.0, lh)

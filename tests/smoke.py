@@ -170,11 +170,15 @@ export.pdf_bytes(export.build(dict(pv, RC_N=28)))
 view3d.Scene(Geo(dict(pv, RC_N=28)))
 print("OK - co mong vat")
 # hình thức cột: néo thẳng, néo hãm (đọc chữ ô B4, tên bản vẽ, hướng tuyến 2 chiều như cột đỡ)
-for txt, ht in (("ĐỠ", 0), ("NÉO GÓC", 1), ("NÉO DỪNG", 2), ("NÉO THẲNG", 3), ("Néo hãm", 4), ("NÉO", 1)):
+for txt, ht in (("ĐỠ", 0), ("NÉO GÓC", 1), ("NÉO DỪNG", 2), ("NÉO THẲNG", 3), ("Néo hãm", 4), ("NÉO", 1),
+                ("NÉO GÓC 90", 5), ("Néo góc 90°", 5)):
     assert model.ht_from_string(txt) == ht, txt
-for ht in range(5):
+for ht in range(len(model.HT_NAMES)):
     r = export.build(dict(pv, HT=ht))
     txt = [t.dxf.text for t in r.doc.modelspace().query("TEXT")]
+    ins = {h for h in r.handles[0]}
+    assert sum(1 for t in r.doc.modelspace().query("TEXT") if t.dxf.handle in ins and t.dxf.text == sheet1.T_ROUTE) \
+        == (2 if ht == model.HT_90 else 1), ht                  # néo góc 90°: 2 mũi tên hướng tuyến
     assert any(t.startswith(f"HÌNH THỨC MÓNG CỘT {model.HT_NAMES[ht]} ") for t in txt)
     assert (sheet1.T_BISECT in txt) == (ht in (1, 3, 4)), ht     # phân giác: néo góc, néo thẳng, néo hãm
     export.pdf_bytes(r, only={0})
