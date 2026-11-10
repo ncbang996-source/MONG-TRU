@@ -43,4 +43,34 @@ for f in fs:
 # chỉ PDF + IFC; không ghi đè file Excel đầu vào khi thư mục xuất = thư mục dự án
 r = batch.export_file(fs[0], d, ["pdf", "ifc"])
 assert len(r) == 2 and os.path.isfile(fs[0])
+# khối lượng tổng hợp phần móng: mỗi dòng = bảng tổng kê tờ 1 (01 móng), dòng TỔNG nhân số lượng
+import openpyxl  # noqa: E402
+from mongtru import tables  # noqa: E402
+from mongtru.geom import Geo  # noqa: E402
+from mongtru.lech import export as le  # noqa: E402
+from mongtru.lech import sheet1 as ls1  # noqa: E402
+rows = []
+for f, q in ((fs[0], 4), (fs[1], 1)):
+    data, _, mix = batch.load(f)
+    r = batch.summary_row(data)
+    if mix:
+        cols = ls1.summary_cols(data, le.geos(data))
+    else:
+        g = Geo(data)
+        g.calc_kl()
+        cols = tables.summary_cols(g)
+    sh = {c[0]: float(c[3]) for c in cols if c[0] != "BULONG"}
+    assert abs(sh[data["BTM"]] - r["bt"]) < 0.006 and abs(sh[data["BTL"]] - r["lot"]) < 0.006
+    assert all(abs(sh[f"%%C{d}"] - w) < 0.006 for d, w in r["steel"].items()), (sh, r["steel"])
+    assert abs(sh["TỔNG K.LƯỢNG"] - sum(r["steel"].values())) < 0.006
+    rows.append((q, r))
+fk = os.path.join(out, batch.SUMMARY_NAME)
+batch.write_summary(rows, fk)
+ws = openpyxl.load_workbook(fk).active
+hd = [c.value for c in ws[2]]
+assert hd[:3] == ["TÊN CỘT", "TÊN MÓNG", "SỐ LƯỢNG"] and "Ø8(kg)" in hd and hd[-3:] == ["Dài (m)", "Rộng (m)",
+                                                                                        "Diện tích (m2)"], hd
+assert [ws.cell(row=3, column=1).value, ws.cell(row=3, column=3).value] == ["D112-30", 4]
+assert ws.cell(row=5, column=1).value == "TỔNG" and ws.cell(row=5, column=3).value == "=SUM($C$3:$C$4)"
+assert ws.cell(row=5, column=4).value == "=SUMPRODUCT($C$3:$C$4,D3:D4)"
 print("OK - xuat dong loat")

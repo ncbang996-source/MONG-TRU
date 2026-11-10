@@ -1392,7 +1392,7 @@ class App(tk.Tk):
         save_settings({"xls": self.xls, "frame": self.frame_path, "fields": self.fields,
                        "auto": self.v_auto.get(), "params": p, "mixed": mp,
                        "export_all": self.st.get("export_all"), "batch": self.st.get("batch"),
-                       "project": {"files": self.project, "i": self.proj_i}})
+                       "project": {"files": self.project, "i": self.proj_i}, "qty": self.st.get("qty")})
         self.destroy()
 
 
@@ -1443,9 +1443,16 @@ class BatchDialog(tk.Toplevel):
         ttk.Button(bar, text="Mở file đang chọn", command=self.open_sel).pack(side="left")
         if not self.fixed:
             ttk.Button(bar, text="Nhập các file đang chọn vào dự án", command=self.to_project).pack(side="left", padx=4)
-        cols = ("loai", "tt")
+        # số lượng móng (số vị trí) từng loại - dùng cho khối lượng tổng hợp; nhớ theo file
+        ttk.Button(bar, text="Đặt cho móng đang chọn", command=self.set_qty).pack(side="right")
+        self.v_qty = tk.StringVar(value="1")
+        ttk.Spinbox(bar, from_=0, to=9999, width=5, textvariable=self.v_qty).pack(side="right", padx=4)
+        ttk.Label(bar, text="Số lượng (SL)").pack(side="right")
+        cols = ("sl", "loai", "tt")
         self.tv = ttk.Treeview(f, columns=cols, selectmode="extended")
         self.tv.heading("#0", text="File Excel (chọn nhiều: Ctrl / Shift + nhấp; nhấp đúp: mở)")
+        self.tv.heading("sl", text="SL")
+        self.tv.column("sl", width=50, stretch=False, anchor="center")
         self.tv.heading("loai", text="Loại")
         self.tv.heading("tt", text="Trạng thái")
         self.tv.column("#0", width=420)
@@ -1465,6 +1472,9 @@ class BatchDialog(tk.Toplevel):
             ttk.Checkbutton(kf, text=f"{lbl} (*{ext})", variable=v).grid(row=i // 2, column=i % 2, sticky="w",
                                                                          padx=(0, 20))
             self.v_k[k] = v
+        self.v_sum = tk.BooleanVar(value=cfg.get("sum", bool(self.fixed)))
+        ttk.Checkbutton(kf, text=f"Khối lượng tổng hợp phần móng - cả dự án, theo số lượng SL ({batch.SUMMARY_NAME})",
+                        variable=self.v_sum).grid(row=2, column=0, columnspan=2, sticky="w")
         ttk.Label(f, text="Thư mục xuất").grid(row=4, column=0, sticky="w")
         self.v_out = tk.StringVar(value=cfg.get("out") or "")
         ttk.Entry(f, textvariable=self.v_out).grid(row=4, column=1, sticky="we", padx=4)
@@ -1488,10 +1498,11 @@ class BatchDialog(tk.Toplevel):
     def _save(self):
         if self.fixed:                                     # dự án: chỉ nhớ loại file, thư mục xuất
             b = dict(self.app.st.get("batch") or {})
-            b.update({"out": self.v_out.get().strip(), "kinds": [k for k, v in self.v_k.items() if v.get()]})
+            b.update({"out": self.v_out.get().strip(), "kinds": [k for k, v in self.v_k.items() if v.get()],
+                      "sum": self.v_sum.get()})
             self.app.st["batch"] = b
             return
-        self.app.st["batch"] = {"dir": self.v_dir.get().strip(), "sub": self.v_sub.get(),
+        self.app.st["batch"] = {"dir": self.v_dir.get().strip(), "sub": self.v_sub.get(), "sum": self.v_sum.get(),
                                 "out": self.v_out.get().strip(), "kinds": [k for k, v in self.v_k.items() if v.get()]}
 
     def pick_dir(self):
@@ -1515,6 +1526,22 @@ class BatchDialog(tk.Toplevel):
                 return os.path.dirname(os.path.abspath(self.fixed[0]))
         return self.v_dir.get().strip()
 
+    def qty(self, f):
+        return int((self.app.st.get("qty") or {}).get(os.path.abspath(f), 1))
+
+    def set_qty(self):
+        try:
+            q = int(float(self.v_qty.get().replace(",", ".")))
+            if q < 0:
+                raise ValueError
+        except ValueError:
+            messagebox.showerror(APP_NAME, "Số lượng phải là số nguyên >= 0.", parent=self)
+            return
+        d = self.app.st.setdefault("qty", {})
+        for i in self.tv.selection():
+            d[os.path.abspath(self.files[int(i)])] = q
+            self.tv.set(i, "sl", q)
+
     def to_project(self):
         s = self.tv.selection()
         if s and not self._busy:
@@ -1536,7 +1563,7 @@ class BatchDialog(tk.Toplevel):
                 kind = "Móng 2 loại" if lmodel.detect(f) else "4 trụ"
             except Exception:
                 kind = "?"
-            self.tv.insert("", "end", iid=str(i), text=os.path.relpath(f, d), values=(kind, ""))
+            self.tv.insert("", "end", iid=str(i), text=os.path.relpath(f, d), values=(self.qty(f), kind, ""))
         self.tv.selection_set(self.tv.get_children())
         self.pb.configure(value=0, maximum=max(1, len(self.files)))
 
@@ -1564,7 +1591,8 @@ class BatchDialog(tk.Toplevel):
         sel = [int(i) for i in self.tv.selection()]
         kinds = [k for k, v in self.v_k.items() if v.get()]
         d = self.root()
-        if not sel or not kinds:
+        do_sum = self.v_sum.get()
+        if not sel or not (kinds or do_sum):
             messagebox.showwarning(APP_NAME, "Chọn ít nhất 1 file Excel và 1 loại file xuất.", parent=self)
             return
         out = self.v_out.get().strip() or os.path.join(d, "XUAT")
@@ -1575,11 +1603,12 @@ class BatchDialog(tk.Toplevel):
         self.b_stop.configure(state="normal")
         self.pb.configure(value=0, maximum=len(sel))
         a = self.app
-        job = [(i, self.files[i], load_layout(self.files[i])) for i in sel]
+        job = [(i, self.files[i], load_layout(self.files[i])) for i in sorted(sel)]
+        qty = {i: self.qty(self.files[i]) for i in sel}
         args = (a.frame_path or None, copy.deepcopy(a.fields), dict(a.p))
 
         def work():
-            ok = 0
+            ok, rows = 0, []
             for n, (i, f, offs) in enumerate(job):
                 if self._stop:
                     self._q.put(("row", i, "Đã dừng"))
@@ -1589,13 +1618,25 @@ class BatchDialog(tk.Toplevel):
                     sub = os.path.relpath(os.path.dirname(f), d)
                     res = batch.export_file(f, os.path.normpath(os.path.join(out, sub)), kinds, args[0], args[1],
                                             offs, args[2])
-                    msg = f"Xong {len(res)} file" + (f" - cảnh báo: {' '.join(res.warn)[:120]}" if res.warn else "")
+                    if do_sum:
+                        rows.append((qty[i], batch.summary_row(res.data)))
+                    msg = f"Xong {len(res)} file" + (" + khối lượng" if do_sum else "") + \
+                        (f" - cảnh báo: {' '.join(res.warn)[:120]}" if res.warn else "")
                     ok += 1
                 except Exception as ex:
                     msg = f"LỖI: {ex}"
                 self._q.put(("row", i, msg))
                 self._q.put(("prog", n + 1))
-            self._q.put(("end", ok, len(job), out))
+            extra = ""
+            if do_sum and rows and not self._stop:
+                try:
+                    os.makedirs(out, exist_ok=True)
+                    fs = os.path.join(out, batch.SUMMARY_NAME)
+                    batch.write_summary(rows, fs)
+                    extra = f"\nKhối lượng tổng hợp: {fs}"
+                except Exception as ex:
+                    extra = f"\nKHÔNG ghi được khối lượng tổng hợp: {ex}"
+            self._q.put(("end", ok, len(job), out + extra))
         threading.Thread(target=work, daemon=True).start()
         self.after(100, self._poll)
 
