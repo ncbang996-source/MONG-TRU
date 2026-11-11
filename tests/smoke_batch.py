@@ -20,10 +20,13 @@ shutil.copy(os.path.join(sm, "N112-30(60).xls"), os.path.join(d, "TUYEN2", "VT15
 open(os.path.join(d, "hong.xlsx"), "w").write("rac")
 open(os.path.join(d, "~$D112-30.xls"), "w").write("tam")
 open(os.path.join(d, "D112-30_KL.xlsx"), "w").write("kl")
+assert sorted(["10.NC", "2.D", "1.D", "9.N"], key=batch.natural_key) == ["1.D", "2.D", "9.N", "10.NC"]      # 1..10
+open(os.path.join(d, batch.SUMMARY_NAME), "w").write("kl")            # file khối lượng tổng hợp đã xuất: không tính là móng
 fs = batch.find_excel(d)
-assert [os.path.basename(f) for f in fs] == ["D112-30.xls", "N112-52(60) - 3T-1T.xls", "hong.xlsx"], fs
+assert [os.path.basename(f) for f in fs] == ["D112-30.xls", "hong.xlsx", "N112-52(60) - 3T-1T.xls"], fs   # không tính file KL
 fs = batch.find_excel(d, sub=True)
 assert len(fs) == 4 and fs[-1].endswith(os.path.join("TUYEN2", "VT15.xls")), fs
+fs = [fs[0], fs[2], fs[3], fs[1]]                  # D112-30, N112-52, VT15, hong (file hỏng ở cuối)
 out = os.path.join(d, "XUAT")
 kinds = [k for k, *_ in batch.KINDS]
 for f in fs:
@@ -50,7 +53,7 @@ from mongtru.geom import Geo  # noqa: E402
 from mongtru.lech import export as le  # noqa: E402
 from mongtru.lech import sheet1 as ls1  # noqa: E402
 rows = []
-for f, q in ((fs[0], 4), (fs[1], 1)):
+for f, q in ((fs[0], 4), (fs[1], 1)):                       # D112-30 (4 trụ), N112-52 (2 loại)
     data, _, mix = batch.load(f)
     r = batch.summary_row(data)
     if mix:
@@ -75,11 +78,11 @@ assert ws.cell(row=5, column=1).value == "TỔNG" and ws.cell(row=5, column=3).v
 assert ws.cell(row=5, column=4).value == "=SUMPRODUCT($C$3:$C$4,D3:D4)"
 # file dự án *.mongtru: lưu đường dẫn tương đối + số lượng; chép cả thư mục sang chỗ khác vẫn mở được
 pf = os.path.join(d, "DU_AN" + batch.PROJECT_EXT)
-batch.save_project(pf, [fs[0], fs[1], fs[3]], {os.path.abspath(fs[0]): 4, os.path.abspath(fs[3]): 2}, 1)
+batch.save_project(pf, [fs[0], fs[1], fs[2]], {os.path.abspath(fs[0]): 4, os.path.abspath(fs[2]): 2}, 1)
 d2 = d + "_copy"
 shutil.copytree(d, d2)
 lf, lq, cur, miss = batch.load_project(os.path.join(d2, "DU_AN" + batch.PROJECT_EXT))
-assert [os.path.relpath(f, d2) for f in lf] == [os.path.relpath(f, d) for f in (fs[0], fs[1], fs[3])] and not miss
+assert [os.path.relpath(f, d2) for f in lf] == [os.path.relpath(f, d) for f in (fs[0], fs[1], fs[2])] and not miss
 assert [lq[f] for f in lf] == [4, 1, 2] and cur == 1 and all(f.startswith(d2) for f in lf)
 os.remove(os.path.join(d2, "D112-30.xls"))
 lf, lq, cur, miss = batch.load_project(os.path.join(d2, "DU_AN" + batch.PROJECT_EXT))

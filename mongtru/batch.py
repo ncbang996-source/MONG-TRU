@@ -15,14 +15,22 @@ KINDS = [("pdf", "PDF bản vẽ", ".pdf"), ("dxf", "AutoCAD DXF (kèm mặt b�
          ("xlsx", "Excel khối lượng", "_KL.xlsx"), ("ifc", "Mô hình IFC (BIM)", ".ifc")]
 
 
+def natural_key(s):
+    """Khoá sắp xếp theo số tự nhiên: 1, 2, ..., 9, 10 (không phải 1, 10, 2...)."""
+    import re
+    return [int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", str(s))]
+
+
 def find_excel(folder, sub=False) -> list:
-    """File Excel đầu vào trong thư mục (bỏ file khối lượng đã xuất *_KL.xlsx và file tạm ~$)."""
+    """File Excel đầu vào trong thư mục (bỏ file đã xuất: *_KL.xlsx, khối lượng tổng hợp; và file tạm ~$), xếp theo
+    số tự nhiên."""
     out = []
     for root, dirs, files in os.walk(folder):
-        dirs.sort()
-        for f in sorted(files):
+        dirs.sort(key=natural_key)
+        for f in sorted(files, key=natural_key):
             lo = f.lower()
-            if lo.endswith(EXCEL_EXT) and not f.startswith("~$") and not lo.endswith("_kl.xlsx"):
+            if lo.endswith(EXCEL_EXT) and not f.startswith("~$") and not lo.endswith("_kl.xlsx") \
+                    and lo != SUMMARY_NAME.lower():
                 out.append(os.path.join(root, f))
         if not sub:
             break

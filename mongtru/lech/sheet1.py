@@ -354,11 +354,11 @@ def draw_plan(c: Ctx, L: Lay):
     if L.ax == "x":
         ya = a[4]
         marker(c, v.x(-El) - 22.0, cy + k * ya, 1.0, "A")
-        marker(c, v.x(Er) + 14.0, cy + k * ya, -1.0, "A")
+        marker(c, v.x(Er) + 18.0, cy + k * ya, -1.0, "A")
     else:
         xa = a[3]
         marker(c, cx + k * xa, v.y(-Eb) - 22.0, -1.0, "A", 90.0)
-        marker(c, cx + k * xa, v.y(Et) + 14.0, 1.0, "A", 90.0)
+        marker(c, cx + k * xa, v.y(Et) + 18.0, 1.0, "A", 90.0)
     _dims(c, L, v, pc, El, Er, Et, Eb, ys0, gap)
     title(c, cx, v.y(-Eb) - 25.0, "MẶT BẰNG MÓNG", f"TL:1/{L.den}")
 

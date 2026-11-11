@@ -44,3 +44,8 @@ nhánh này; lấy lại đúng mã nguồn lúc đó: `git checkout ban-on-dinh
 
 ## Phiên bản 1.1.0 (người dùng yêu cầu)
 - Chỉ đổi giao diện (màu navy sậm, menu Xuất, mô tả) và số phiên bản; định dạng bản vẽ, khối lượng không đổi (`tests/regression.py` = 0 chỗ khác).
+
+## Thay đổi theo cmt - 2 (người dùng yêu cầu) - đã ghi lại mẫu golden
+- Ký hiệu mặt cắt A (phải mặt bằng tờ 1; móng 2 loại: phải / trên) dịch ra ngoài thêm 4 mm (14 -> 18 mm).
+- Néo góc 90°: nhập liệu và mũi tên hướng tuyến như cũ, tên bản vẽ (khung tên, mặt bằng 1:1, IFC, Excel khối lượng) chỉ ghi "NÉO GÓC".
+- Giao diện (không ảnh hưởng bản vẽ): bảng dự án nhập SL tại cột, nút ▲ ▼ đổi vị trí, xếp theo số tự nhiên; nhãn nút rút gọn kèm chú giải khi rê chuột; bỏ nút Xuất dự án ở thanh DỰ ÁN.

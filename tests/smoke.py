@@ -182,4 +182,7 @@ for ht in range(len(model.HT_NAMES)):
     assert any(t.startswith(f"HÌNH THỨC MÓNG CỘT {model.HT_NAMES[ht]} ") for t in txt)
     assert (sheet1.T_BISECT in txt) == (ht in (1, 3, 4)), ht     # phân giác: néo góc, néo thẳng, néo hãm
     export.pdf_bytes(r, only={0})
+r = export.build(dict(pv, HT=model.HT_90))                    # néo góc 90°: tên bản vẽ chỉ ghi "NÉO GÓC"
+tt = [t.dxf.text for t in r.doc.modelspace().query("TEXT") if t.dxf.text.startswith("HÌNH THỨC MÓNG CỘT")]
+assert tt and all("NÉO GÓC " in t and "90°" not in t for t in tt), tt
 print("OK - hinh thuc cot")

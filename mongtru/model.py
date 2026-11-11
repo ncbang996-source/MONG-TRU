@@ -36,7 +36,7 @@ CELL_RLAYERS = "K28"                               # "02 lớp"
 CELL_NPIER = "C24"                                 # số trụ móng
 CELL_DP = "H29"                                    # dự phòng thép (%)
 
-HT_NAMES = ["ĐỠ", "NÉO GÓC", "NÉO DỪNG", "NÉO THẲNG", "NÉO HÃM", "NÉO GÓC 90°"]   # thêm loại mới vào cuối (giữ số cũ)
+HT_NAMES = ["ĐỠ", "NÉO GÓC", "NÉO DỪNG", "NÉO THẲNG", "NÉO HÃM", "NÉO GÓC"]   # thêm loại mới vào cuối (giữ số cũ); néo góc 90° (5): tên bản vẽ chỉ ghi "NÉO GÓC"
 HT_UI = ["Đỡ", "Néo góc", "Néo dừng", "Néo thẳng", "Néo hãm", "Néo góc 90°"]
 HT_ANGLE = (1, 4)            # hướng tuyến 2 tia lệch 10° + phân giác: néo góc, néo hãm
 HT_BISECT = (1, 3, 4)        # có mũi tên phân giác (sang trái): néo góc, néo thẳng, néo hãm

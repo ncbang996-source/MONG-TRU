@@ -376,7 +376,7 @@ def draw_plan(c: Ctx, g: Geo):
     sym_r(c, v.x(-E) - 3.0, cy, 90.0)
     ya = g.P
     marker(c, v.x(-E) - 22.0, cy + k * ya, 1.0, "A")
-    marker(c, v.x(E) + 14.0, cy + k * ya, -1.0, "A")
+    marker(c, v.x(E) + 18.0, cy + k * ya, -1.0, "A")
     dim_plan(c, g, v)
     title(c, cx, v.y(-E) - 25.0, "MẶT BẰNG MÓNG", f"TL:1/{g.den}")
 
