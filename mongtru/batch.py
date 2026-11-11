@@ -222,3 +222,51 @@ def write_summary(rows, path):
     ws.sheet_properties.pageSetUpPr.fitToPage = True
     ws.page_setup.fitToWidth, ws.page_setup.fitToHeight = 1, 0
     wb.save(path)
+
+
+# ---------------------------------------------------------------------------
+# file dự án (*.mongtru, JSON): danh sách file Excel móng + số lượng từng móng + móng đang xem
+PROJECT_EXT = ".mongtru"
+
+
+def save_project(path, files, qty=None, cur=0):
+    """Ghi file dự án. Đường dẫn file Excel lưu tương đối so với thư mục chứa file dự án (chép cả thư mục sang máy
+    khác vẫn mở được); khác ổ đĩa thì lưu đường dẫn đầy đủ."""
+    import json
+    base = os.path.dirname(os.path.abspath(path))
+    items = []
+    for f in files:
+        f = os.path.abspath(f)
+        try:
+            rel = os.path.relpath(f, base)
+        except ValueError:
+            rel = f
+        items.append({"file": rel.replace(os.sep, "/"), "sl": int((qty or {}).get(f, 1))})
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump({"app": "VE_MONGTRU", "type": "project", "version": 1, "current": int(cur), "files": items},
+                  fh, ensure_ascii=False, indent=1)
+
+
+def load_project(path):
+    """Đọc file dự án -> (danh sách đường dẫn tuyệt đối, {đường dẫn: số lượng}, vị trí móng đang xem, file thiếu)."""
+    import json
+    with open(path, encoding="utf-8") as fh:
+        d = json.load(fh)
+    if not isinstance(d, dict) or d.get("type") != "project" or not isinstance(d.get("files"), list):
+        raise ValueError("Không phải file dự án VE_MONGTRU (*.mongtru).")
+    base = os.path.dirname(os.path.abspath(path))
+    files, qty, missing = [], {}, []
+    for it in d["files"]:
+        rel = it.get("file") if isinstance(it, dict) else None
+        if not rel:
+            continue
+        f = os.path.normpath(os.path.join(base, rel.replace("/", os.sep)))
+        if not os.path.isfile(f):
+            missing.append(f)
+            continue
+        files.append(f)
+        try:
+            qty[f] = max(0, int(it.get("sl", 1)))
+        except (TypeError, ValueError):
+            qty[f] = 1
+    return files, qty, int(d.get("current") or 0), missing

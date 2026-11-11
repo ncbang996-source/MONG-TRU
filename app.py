@@ -157,6 +157,7 @@ class App(tk.Tk):
         pj = self.st.get("project") or {}               # dự án đã mở lần trước (danh sách file Excel móng)
         self.project = [f for f in (pj.get("files") or []) if isinstance(f, str) and os.path.isfile(f)]
         self.proj_i = max(0, min(int(pj.get("i") or 0), len(self.project) - 1))
+        self.project_file = pj.get("file") if isinstance(pj.get("file"), str) and os.path.isfile(pj.get("file")) else ""
         self.vars: dict[str, tk.Variable] = {}
         self.pdf = None
         self.pages = []          # ảnh PIL từng trang
@@ -284,7 +285,20 @@ class App(tk.Tk):
         g1 = group("Dữ liệu")
         btn(g1, "Mở Excel...", self.pick_excel)
         btn(g1, "⟳ Đọc lại", lambda: self.read_excel(self.xls))
-        btn(g1, "Mở dự án...", self.open_project)
+        self.m_prj = tk.Menu(self, tearoff=0, background=C["card"], foreground=C["text"], font=f,
+                             activebackground=C["green"], activeforeground="#FFFFFF")
+        for it in (("Tạo dự án từ nhiều file Excel móng...", self.new_project),
+                   ("Mở file dự án (*.mongtru)...", self.open_project_file), None,
+                   ("Lưu dự án", self.save_project), ("Lưu dự án thành... (file *.mongtru)", self.save_project_as),
+                   None, ("Đóng dự án", self.close_project)):
+            if it is None:
+                self.m_prj.add_separator()
+            else:
+                self.m_prj.add_command(label=it[0], command=it[1])
+        self.b_prj = ttk.Button(g1, text="Dự án ▾", style="Tool.TButton",
+                                command=lambda: self.m_prj.tk_popup(self.b_prj.winfo_rootx(),
+                                                                    self.b_prj.winfo_rooty() + self.b_prj.winfo_height()))
+        self.b_prj.pack(side="left", padx=(0, 4))
         btn(g1, "Thư mục dự án...", lambda: BatchDialog(self))
         g2 = group("Khung tên")
         btn(g2, "Nạp khung tên...", self.pick_frame)
@@ -343,9 +357,14 @@ class App(tk.Tk):
         self.l_proj = tk.Label(pj, text="", background=C["green"], foreground="#FFFFFF", font=f)
         self.l_proj.pack(side="left", padx=8)
         ttk.Button(pj, text="Đóng dự án", style="Small.TButton", command=self.close_project).pack(side="right")
+        ttk.Button(pj, text="Lưu dự án", style="Small.TButton", command=self.save_project).pack(side="right", padx=6)
+        self.l_pfile = tk.Label(pj, text="", background=C["green"], foreground=C["stitch"], font=f)
+        self.l_pfile.pack(side="right", padx=6)
         ttk.Button(pj, text="Xuất dự án (đồng loạt)...", style="Small.TButton",
                    command=self.export_batch).pack(side="right", padx=6)
         ttk.Button(pj, text="+ Thêm móng...", style="Small.TButton", command=self.add_to_project).pack(side="right")
+        ttk.Button(pj, text="− Bớt móng", style="Small.TButton", command=self.remove_from_project).pack(
+            side="right", padx=(0, 6))
 
         info = ttk.Frame(self, style="Bg.TFrame", padding=(10, 3))
         info.pack(side="top", fill="x")
@@ -708,18 +727,86 @@ class App(tk.Tk):
 
     # ---------------------------------------------------------- hành động
     # ------------------------------------------------------------ dự án (nhiều móng)
-    def open_project(self):
-        fs = filedialog.askopenfilenames(title="Mở dự án - chọn đồng loạt các file Excel móng",
-                                         filetypes=[("Excel", "*.xls *.xlsx *.xlsm")],
+    PRJ_TYPES = [("Dự án VE_MONGTRU", "*" + batch.PROJECT_EXT), ("File Excel móng", "*.xls *.xlsx *.xlsm")]
+
+    def new_project(self):
+        """Dự án mới = chọn đồng loạt nhiều file Excel móng (sheet TONG HOP); lưu thành file *.mongtru bằng Lưu dự án."""
+        fs = filedialog.askopenfilenames(title="Tạo dự án - chọn đồng loạt các file Excel móng (Ctrl / Shift + nhấp)",
+                                         filetypes=[("File Excel móng", "*.xls *.xlsx *.xlsm")],
                                          initialdir=os.path.dirname(self.xls) if self.xls else None)
         if fs:
+            self.project_file = ""
             self.set_project(list(fs))
+            self.l_msg.config(text="Đã tạo dự án mới (chưa lưu) - dùng Dự án > Lưu dự án thành... để lưu file *.mongtru.")
+
+    def open_project_file(self):
+        f = filedialog.askopenfilename(title="Mở file dự án (*.mongtru)", filetypes=self.PRJ_TYPES[:1],
+                                       initialdir=os.path.dirname(self.project_file) if self.project_file else None)
+        if f:
+            self.load_project_file(f)
+
+    def load_project_file(self, f):
+        try:
+            files, qty, cur, missing = batch.load_project(f)
+        except (OSError, ValueError) as ex:
+            messagebox.showerror(APP_NAME, f"Không mở được file dự án:\n{ex}")
+            return
+        if not files:
+            messagebox.showerror(APP_NAME, "Dự án không có file Excel nào còn tồn tại.")
+            return
+        self.st.setdefault("qty", {}).update({os.path.abspath(k): v for k, v in qty.items()})
+        self.project_file = os.path.abspath(f)
+        self.set_project(files, cur)
+        if missing:
+            messagebox.showwarning(APP_NAME, "Không tìm thấy %d file Excel của dự án (đã bỏ qua):\n%s" % (
+                len(missing), "\n".join(missing[:8])))
+
+    def save_project(self, quiet=False):
+        """Lưu dự án vào file *.mongtru đang dùng (chưa có -> hỏi tên)."""
+        if not self.project:
+            return
+        if not self.project_file:
+            return self.save_project_as()
+        try:
+            q = self.st.get("qty") or {}
+            batch.save_project(self.project_file, self.project, {k: q.get(k, 1) for k in self.project}, self.proj_i)
+        except OSError as ex:
+            messagebox.showerror(APP_NAME, f"Không lưu được dự án:\n{ex}")
+            return
+        self._proj_refresh()
+        if not quiet:
+            self.l_msg.config(text=f"Đã lưu dự án: {self.project_file}")
+
+    def save_project_as(self):
+        if not self.project:
+            messagebox.showinfo(APP_NAME, "Chưa có dự án: dùng Dự án > Tạo dự án từ nhiều file Excel móng...")
+            return
+        f = filedialog.asksaveasfilename(title="Lưu dự án", defaultextension=batch.PROJECT_EXT,
+                                         filetypes=self.PRJ_TYPES[:1], initialfile="DU_AN" + batch.PROJECT_EXT,
+                                         initialdir=os.path.dirname(self.project[0]))
+        if f:
+            self.project_file = os.path.abspath(f)
+            self.save_project()
 
     def add_to_project(self):
-        fs = filedialog.askopenfilenames(title="Thêm móng vào dự án", filetypes=[("Excel", "*.xls *.xlsx *.xlsm")],
+        fs = filedialog.askopenfilenames(title="Thêm móng vào dự án", filetypes=self.PRJ_TYPES[1:],
                                          initialdir=os.path.dirname(self.project[0]) if self.project else None)
         if fs:
             self.set_project(self.project + [f for f in fs if f not in self.project], self.proj_i, load=False)
+            self._autosave()
+
+    def remove_from_project(self):
+        if len(self.project) > 1 and messagebox.askyesno(
+                APP_NAME, f"Bớt móng \"{os.path.basename(self.project[self.proj_i])}\" khỏi dự án?\n"
+                          "(File Excel không bị xoá.)"):
+            fs = [f for k, f in enumerate(self.project) if k != self.proj_i]
+            self.set_project(fs, self.proj_i)
+            self._autosave()
+
+    def _autosave(self):
+        """Dự án đã có file *.mongtru: tự lưu mỗi khi đổi danh sách / móng đang xem."""
+        if self.project_file and self.project:
+            self.save_project(quiet=True)
 
     def set_project(self, files, i=0, load=True):
         """Dự án = danh sách file Excel móng (thứ tự đã chọn, bỏ trùng). load: mở móng thứ i."""
@@ -742,6 +829,8 @@ class App(tk.Tk):
         self.cb_proj.config(values=[f"{k + 1}. {os.path.basename(f)}" for k, f in enumerate(self.project)])
         self.cb_proj.current(self.proj_i)
         self.l_proj.config(text=f"{self.proj_i + 1}/{len(self.project)} móng")
+        self.l_pfile.config(text=("Dự án: " + os.path.basename(self.project_file)) if self.project_file
+                            else "Dự án chưa lưu (Dự án > Lưu dự án thành...)")
         if not self._proj_bar.winfo_ismapped():
             self._proj_bar.pack(side="top", fill="x", before=self._info_bar)
 
@@ -757,9 +846,11 @@ class App(tk.Tk):
         self._proj_refresh()
         if os.path.abspath(self.xls or "") != f:
             self.read_excel(f)
+        self._autosave()
 
     def close_project(self):
-        self.project, self.proj_i = [], 0
+        self._autosave()
+        self.project, self.proj_i, self.project_file = [], 0, ""
         self._proj_refresh()
 
     def export_batch(self):
@@ -1389,10 +1480,11 @@ class App(tk.Tk):
         if self.mp:
             mp, p = p, lui.fill_params(p, 0)
             p = {k: v for k, v in p.items() if k in model.default_params()}
+        self._autosave()
         save_settings({"xls": self.xls, "frame": self.frame_path, "fields": self.fields,
                        "auto": self.v_auto.get(), "params": p, "mixed": mp,
                        "export_all": self.st.get("export_all"), "batch": self.st.get("batch"),
-                       "project": {"files": self.project, "i": self.proj_i}, "qty": self.st.get("qty")})
+                       "project": {"files": self.project, "i": self.proj_i, "file": self.project_file}, "qty": self.st.get("qty")})
         self.destroy()
 
 
@@ -1429,7 +1521,8 @@ class BatchDialog(tk.Toplevel):
         bar = ttk.Frame(f)
         bar.grid(row=1, column=0, columnspan=3, sticky="we", pady=(6, 4))
         if self.fixed:
-            ttk.Label(f, text=f"Dự án: {len(self.fixed)} móng - thư mục gốc: {self.root()}").grid(
+            pf = os.path.basename(app.project_file) if app.project_file else "chưa lưu"
+            ttk.Label(f, text=f"Dự án ({pf}): {len(self.fixed)} móng - thư mục gốc: {self.root()}").grid(
                 row=0, column=0, columnspan=3, sticky="w")
         else:
             ttk.Label(f, text="Thư mục dự án").grid(row=0, column=0, sticky="w")
@@ -1541,11 +1634,14 @@ class BatchDialog(tk.Toplevel):
         for i in self.tv.selection():
             d[os.path.abspath(self.files[int(i)])] = q
             self.tv.set(i, "sl", q)
+        if self.fixed:
+            self.app._autosave()
 
     def to_project(self):
         s = self.tv.selection()
         if s and not self._busy:
             self._save()
+            self.app.project_file = ""
             self.app.set_project([self.files[int(i)] for i in s])
             self.destroy()
 

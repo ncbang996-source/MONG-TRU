@@ -73,4 +73,21 @@ assert hd[:3] == ["TÊN CỘT", "TÊN MÓNG", "SỐ LƯỢNG"] and "Ø8(kg)" in 
 assert [ws.cell(row=3, column=1).value, ws.cell(row=3, column=3).value] == ["D112-30", 4]
 assert ws.cell(row=5, column=1).value == "TỔNG" and ws.cell(row=5, column=3).value == "=SUM($C$3:$C$4)"
 assert ws.cell(row=5, column=4).value == "=SUMPRODUCT($C$3:$C$4,D3:D4)"
+# file dự án *.mongtru: lưu đường dẫn tương đối + số lượng; chép cả thư mục sang chỗ khác vẫn mở được
+pf = os.path.join(d, "DU_AN" + batch.PROJECT_EXT)
+batch.save_project(pf, [fs[0], fs[1], fs[3]], {os.path.abspath(fs[0]): 4, os.path.abspath(fs[3]): 2}, 1)
+d2 = d + "_copy"
+shutil.copytree(d, d2)
+lf, lq, cur, miss = batch.load_project(os.path.join(d2, "DU_AN" + batch.PROJECT_EXT))
+assert [os.path.relpath(f, d2) for f in lf] == [os.path.relpath(f, d) for f in (fs[0], fs[1], fs[3])] and not miss
+assert [lq[f] for f in lf] == [4, 1, 2] and cur == 1 and all(f.startswith(d2) for f in lf)
+os.remove(os.path.join(d2, "D112-30.xls"))
+lf, lq, cur, miss = batch.load_project(os.path.join(d2, "DU_AN" + batch.PROJECT_EXT))
+assert len(lf) == 2 and len(miss) == 1                                    # file thiếu: bỏ qua, báo lại
+open(os.path.join(d, "sai.mongtru"), "w").write("{}")
+try:
+    batch.load_project(os.path.join(d, "sai.mongtru"))
+    raise AssertionError("file dự án sai phải báo lỗi")
+except ValueError:
+    pass
 print("OK - xuat dong loat")
