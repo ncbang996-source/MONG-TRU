@@ -22,7 +22,8 @@ DEFAULT_FIELDS = {
     "MABV": {"x": 387.2, "y": 15.0, "h": 2.5, "align": "MC", "wmax": 43.0, "bold": True,
              "box": [364.7, 10.0, 409.6, 20.0]},
 }
-# Logo chọn từ file ảnh (khung có logo OLE nhưng file DXF không lưu dữ liệu ảnh): ô đặt logo (x0, y0, x1, y1) mm,
+# Logo chọn từ file ảnh (khung có logo OLE nhưng file DXF không lưu dữ liệu ảnh - chưa chọn file thì tự dùng logo
+# SEIAC kèm chương trình): ô đặt logo (x0, y0, x1, y1) mm,
 # ảnh giữ tỷ lệ, căn giữa ô. Mặc định: chỗ logo SEIAC của khung A3 SEIAC (KT-A3 dời theo khung NMĐG Hướng Phùng 7:
 # khung lệch +0.3 / +0.5 mm), cùng cỡ 27.4 x 7.0 mm như OLE trống trong khung. "<SEIAC>" = logo kèm chương trình
 # (trích từ OLE của KT-A3).
@@ -53,6 +54,34 @@ def ole_images(path: str):
     if key not in _ole_cache:
         _ole_cache[key] = _ole_images(path)
     return _ole_cache[key]
+
+
+_ole_empty_cache: dict = {}
+
+
+def ole_empty(path) -> bool:
+    """Khung có chỗ logo OLE nhưng file DXF không lưu dữ liệu ảnh (AutoCAD xuất DXF làm mất ảnh OLE)."""
+    try:
+        key = (os.path.abspath(path), os.path.getmtime(path))
+    except (OSError, TypeError):
+        return False
+    if key not in _ole_empty_cache:
+        try:
+            doc = ezdxf.readfile(path)
+            oles = list(doc.modelspace().query("OLE2FRAME"))
+            _ole_empty_cache[key] = bool(oles) and not ole_images(path)
+        except Exception:
+            _ole_empty_cache[key] = False
+    return _ole_empty_cache[key]
+
+
+def effective_fields(frame_path, fields):
+    """Chưa chọn file logo mà khung mất ảnh logo OLE -> tự dùng logo SEIAC kèm chương trình (ô đặt như cấu hình)."""
+    fields = fields or DEFAULT_FIELDS
+    lg = logo_cfg(fields)
+    if not lg.get("file") and frame_path and ole_empty(frame_path):
+        return {**fields, "LOGO": {"file": LOGO_BUILTIN, "rect": lg["rect"]}}
+    return fields
 
 
 def _ole_images(path: str):
@@ -170,7 +199,7 @@ def new_output_doc(frame_path: str | None, stage: str, fields: dict | None = Non
                 e.dxf.text = stage
             elif e.dxftype() == "ATTDEF":
                 tags.add(e.dxf.tag.upper())
-        _add_logo(doc, fields, tags)
+        _add_logo(doc, effective_fields(frame_path, fields), tags)
         return doc, tags
     doc = ezdxf.new("R2018", setup=True, units=4)
     setup_doc(doc)
@@ -230,6 +259,7 @@ def logo_rect(fields, wpx, hpx):
 def pdf_images(frame_path, fields) -> list:
     """Ảnh chèn vào PDF (toạ độ trong khung): logo OLE của khung + logo chọn từ file ảnh."""
     out = list(ole_images(frame_path)) if frame_path else []
+    fields = effective_fields(frame_path, fields)
     lg = logo_png(fields)
     if lg:
         out.append((*logo_rect(fields, lg[1], lg[2]), lg[0]))

@@ -1977,7 +1977,7 @@ class FieldsDialog(tk.Toplevel):
         r0 = len(frame.FIELD_LABELS) + 2
         ttk.Separator(f).grid(row=r0, column=0, columnspan=8, sticky="ew", pady=(8, 4))
         ttk.Label(f, text="Logo (ảnh PNG/JPG; \"Logo SEIAC\" = logo kèm chương trình) - dùng khi file khung DXF không "
-                          "lưu ảnh logo; để trống = không chèn",
+                          "lưu ảnh logo; để trống = tự dùng logo SEIAC khi khung có chỗ logo bị mất ảnh",
                   wraplength=560, justify="left").grid(row=r0 + 1, column=0, columnspan=8, sticky="w")
         self.v_logo = tk.StringVar(value=lg.get("file") or "")
         ttk.Entry(f, textvariable=self.v_logo, width=48).grid(row=r0 + 2, column=0, columnspan=5, sticky="w")

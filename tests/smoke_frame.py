@@ -64,4 +64,11 @@ assert {"s1.tl", "s1.to"} <= ids, ids
 pos = lambda r: [(t.dxf.insert.x, t.dxf.insert.y) for t in r.doc.modelspace().query("TEXT") if t.dxf.text.startswith("TL: ")][0]
 (x0, y0), (x1, y1) = pos(r), pos(export.build(p, fp, fl, {"s1.tl": (4.0, 2.0)}))
 assert abs(x1 - x0 - 4.0) < 1e-6 and abs(y1 - y0 - 2.0) < 1e-6
+# khung có chỗ logo OLE nhưng mất ảnh (như khung Hướng Phùng 7), chưa chọn logo: tự dùng logo SEIAC
+assert not frame.ole_empty(os.path.join(ROOT, "assets", "frames", "KT-A3.dxf"))    # KT-A3 có ảnh OLE
+frame._ole_empty_cache[(os.path.abspath(fp), os.path.getmtime(fp))] = True          # giả lập OLE mất ảnh
+r = export.build(p, fp)                                                              # không cấu hình logo
+assert len(r.ole) == 1 and len(r.doc.modelspace().query("IMAGE")) == len(r.origins)
+r = export.build(p, os.path.join(ROOT, "assets", "frames", "KT-A3.dxf"))
+assert len(r.ole) == 1 and not r.doc.modelspace().query("IMAGE")                     # không chèn trùng
 print("OK - khung ten")
