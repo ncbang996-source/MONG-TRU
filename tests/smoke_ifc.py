@@ -65,7 +65,7 @@ for nm, data in (("d112", p), ("mix", mp)):
     a_db = lm.den_bu(data) if "TYPES" in data else model.den_bu(data)
     xs_ = [pt[0] for pt in bd[0].get_points()]
     assert len(bd) == 1 and abs(max(xs_) - min(xs_) - a_db) < 1e-9, (len(bd), a_db)
-    assert any(t.startswith("CỘT ") for t in out) and any(t.startswith("MÓNG ") for t in out), out
+    assert any(t.startswith("CỘT ") for t in out) and "MÓNG:" in out and str(data["COT"]) in out, out
     print(f"  {nm}: {len(rows)} thực thể IFC, {cnt['IFCREINFORCINGBAR']} nhóm thép, {os.path.getsize(f) // 1024} KB")
 # mặt bằng 1:1: hướng tuyến, phân giác theo hình thức cột (như mặt bằng tờ in)
 for ht in range(len(model.HT_NAMES)):

@@ -1,5 +1,7 @@
 """Mặt bằng móng tỷ lệ 1:1, đơn vị mét (1 đơn vị bản vẽ = 1 m) trong file DXF - để chép sang bản vẽ tổng mặt bằng /
-định vị. Kích thước thật (không rút ngắn khoảng cách tim như tờ in), gốc toạ độ tại tim móng, đặt bên trái tờ 1;
+định vị. Theo quy ước cho phần mềm nhận: 4 block BLN (tim cụm bu lông từng trụ), block TIM TRU (gốc 0,0, hình ở toạ
+độ thật, chèn tại 0,0), bản đế polyline kín layer MAIN (ô vuông lớn nhất quanh mỗi chân), bê tông lót polyline kín
+layer THIN, mã cột chữ layer COT, tên móng chữ layer MONG (không ghi VI TRI: phần mềm nhận lấy tên file DXF). Kích thước thật (không rút ngắn khoảng cách tim như tờ in), gốc toạ độ tại tim móng, đặt bên trái tờ 1;
 không in ra PDF. Chữ, kích thước ghi theo mm (DIMLFAC 1000) như các tờ bản vẽ."""
 from __future__ import annotations
 
@@ -46,6 +48,15 @@ def draw(doc, data, xr=-10.0, ym=148.5):
     e = ext + 0.6
     ox, oy = xr - e, ym
     A = lambda x, y: (ox + x, oy + y)
+    # quy ước trao đổi với phần mềm khác: block BLN (4 chân móng), block TIM TRU, layer MAIN / THIN / COT / MONG
+    for nm, col in (("THIN", 8), ("COT", 2), ("MONG", 3)):
+        if nm not in doc.layers:
+            doc.layers.add(nm, color=col)
+    if "BLN" not in doc.blocks:                              # dấu chân móng: chữ thập + điểm tại gốc block
+        b = doc.blocks.new("BLN")
+        b.add_point((0.0, 0.0), dxfattribs={"layer": "0"})
+        b.add_line((-0.1, 0.0), (0.1, 0.0), dxfattribs={"layer": "0"})
+        b.add_line((0.0, -0.1), (0.0, 0.1), dxfattribs={"layer": "0"})
 
     def rect(lay, x0, y0, x1, y1):
         msp.add_lwpolyline([A(x0, y0), A(x1, y0), A(x1, y1), A(x0, y1)], close=True, dxfattribs={"layer": lay})
@@ -78,7 +89,7 @@ def draw(doc, data, xr=-10.0, ym=148.5):
         P, T = (g.bt + g.tp) / 2, g.bt / 2
         xc, yc = sx * P, sy * P
         B, pm, bh, ml = g.Bh, g.pm, g.b2 / 2, model.ML
-        rect("HINH THUC", xc - B - ml, yc - B - ml, xc + B + ml, yc + B + ml)          # bê tông lót
+        rect("THIN", xc - B - ml, yc - B - ml, xc + B + ml, yc + B + ml)               # bê tông lót
         rect("MAIN", xc - B, yc - B, xc + B, yc + B)                                    # bản đế
         rect("MAIN", xc - pm, yc - pm, xc + pm, yc + pm)                                # gờ
         for qx in (-1, 1):
@@ -97,6 +108,7 @@ def draw(doc, data, xr=-10.0, ym=148.5):
         for bx in (-1, 1):
             for by in (-1, 1):
                 msp.add_circle(A(cx + bx * o, cy + by * o), r, dxfattribs={"layer": "CHU"})
+        msp.add_blockref("BLN", A(cx, cy), dxfattribs={"layer": "CHU"})              # chân móng = tim cụm bu lông
         tx(f"TRỤ {q}: {name}", xc, yc + sy * (B + ml + 0.2))           # phía ngoài bản đế (khe giữa 2 trụ có thể hẹp)
         xs_ax.add(round(sx * T, 6))
         ys_ax.add(round(sy * T, 6))
@@ -115,14 +127,20 @@ def draw(doc, data, xr=-10.0, ym=148.5):
                        dxfattribs={"layer": "HINH THUC", "linetype": "MB_DASH_M"})
     tx(f"ĐƯỜNG BAO ĐỀN BÙ (CÁCH MÉP BÊ TÔNG MÓNG 0.5 m): {a_db:.2f} x {a_db:.2f} = {a_db * a_db:.2f} m²",
        0.0, e + 0.25)
-    # tim móng
+    # tim móng: block TIM TRU gốc (0,0), hình bên trong ở toạ độ thật -> chèn tại 0,0
     rc = 0.15
-    msp.add_circle(A(0.0, 0.0), rc, dxfattribs={"layer": "CHU"})
+    nm = "TIM TRU"
+    while nm in doc.blocks:                                  # (dựng lại trong cùng document: tên mới)
+        nm += "_"
+    bt = doc.blocks.new(nm, base_point=(0.0, 0.0))
+    bt.add_point(A(0.0, 0.0), dxfattribs={"layer": "0"})
+    bt.add_circle(A(0.0, 0.0), rc, dxfattribs={"layer": "0"})
     for a0 in (0.0, 180.0):
         pts = [A(0.0, 0.0)] + [A(rc * math.cos(math.radians(a0 + t)), rc * math.sin(math.radians(a0 + t)))
                                for t in range(0, 91, 10)]
-        hh = msp.add_hatch(color=256, dxfattribs={"layer": "CHU"})
+        hh = bt.add_hatch(color=256, dxfattribs={"layer": "0"})
         hh.paths.add_polyline_path(pts, is_closed=True)
+    msp.add_blockref(nm, (0.0, 0.0), dxfattribs={"layer": "CHU"})
     ht = int(data.get("HT", 0))
     w = cad.txtw(T_AXIS, H_TXT)                         # ghi chú tim móng có đường dẫn, như tờ in
     sg = 1.0 if ht in model.HT_TIM_BR else -1.0          # mũi tên sang trái -> ghi phía dưới bên phải
@@ -168,8 +186,12 @@ def draw(doc, data, xr=-10.0, ym=148.5):
                 else:
                     dim((-ext, a), (-ext, b), (-off, 0.0), 90)
     tx("MẶT BẰNG MÓNG - TỶ LỆ 1:1 (ĐƠN VỊ BẢN VẼ: m, KÍCH THƯỚC GHI: mm)", 0.0, -e - 2.2, h=0.3, bold=True)
-    tx(f"CỘT {model.HT_NAMES[int(data.get('HT', 0))]} {data.get('COT', '')}".strip(), 0.0, -e - 2.75, h=0.25)
-    tx(f"MÓNG {data.get('TENMONG') or (lm.type_name(data) if 'TYPES' in data else model.type_name(data))}",
-       0.0, -e - 3.15, h=0.25)
+    # mã cột (layer COT) và tên móng (layer MONG): ghi nguyên chữ, nhãn bên trái ở layer CHU
+    ten = data.get("TENMONG") or (lm.type_name(data) if "TYPES" in data else model.type_name(data))
+    for y, lab, val, lay in ((-e - 2.75, f"CỘT {model.HT_NAMES[int(data.get('HT', 0))]}:", str(data.get("COT", "")), "COT"),
+                             (-e - 3.15, "MÓNG:", str(ten), "MONG")):
+        tx(lab, -0.06, y, h=0.25, al=TextEntityAlignment.RIGHT)
+        t = msp.add_text(val, height=0.25, dxfattribs={"layer": lay, "width": cad.WIDTH, "style": cad.STYLE})
+        t.set_placement(A(0.06, y), align=TextEntityAlignment.LEFT)
     tx("Gốc toạ độ tại tim móng", 0.0, -e - 3.55)
     return ox, oy
