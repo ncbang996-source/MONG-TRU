@@ -108,5 +108,6 @@ python app.py
 - `python tests/smoke.py`: kiểm tra nhanh (đọc Excel mẫu, so khối lượng, dựng PDF/DXF/Excel).
 - `python tools/check_kl_excel.py`: đối chiếu công thức Excel khối lượng với chương trình qua LibreOffice (phải ra 0 lỗi).
 - `python tests/smoke_lech.py`, `python tools/check_kl_lech.py`: kiểm tra móng 2 loại (Excel khối lượng phải ra 0 lỗi).
+- [docs/QUY_TAC_CHUNG.md](docs/QUY_TAC_CHUNG.md): quy tắc chung khi lập app móng (quy trình, chức năng chung, áp dụng cho móng bản không sườn).
 - `python tests/regression.py`: khóa định dạng bản 1.0.0 (phải ra 0 chỗ khác mẫu) - xem [docs/KHOA_DINH_DANG.md](docs/KHOA_DINH_DANG.md).
 - Kiến trúc chung: xem [docs/HUONG_DAN_PHAT_TRIEN.md](docs/HUONG_DAN_PHAT_TRIEN.md) (viết cho app móng bản có dầm; package ở app này tên `mongtru`).

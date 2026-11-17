@@ -2,6 +2,9 @@
 
 > Bản sao từ repo `MONG-BAN-CO-SUON`. App VE_MONGTRU dựng theo kiến trúc này; package đổi tên thành `mongtru`
 > (đọc `mongban/...` trong tài liệu là `mongtru/...`). Quy tắc riêng của móng trụ xem README và mục 10 cuối tài liệu.
+>
+> **Phần làm thêm sau đó** (quy trình làm việc, khung tên, PDF chữ thật, IFC, mặt bằng 1:1, dự án, xuất đồng loạt,
+> giao diện) và hướng dẫn áp dụng cho móng bản không sườn: xem [QUY_TAC_CHUNG.md](QUY_TAC_CHUNG.md).
 
 Tài liệu này mô tả kiến trúc, quy ước và cách làm việc của app **VE_MONGBANCOSUON** (móng bản có dầm). Mục đích là
 dùng lại khi viết app cho loại móng khác: móng trụ, móng bản không dầm, móng cọc, móng neo…
