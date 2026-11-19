@@ -5,6 +5,11 @@
 >
 > **Phần làm thêm sau đó** (quy trình làm việc, khung tên, PDF chữ thật, IFC, mặt bằng 1:1, dự án, xuất đồng loạt,
 > giao diện) và hướng dẫn áp dụng cho móng bản không sườn: xem [QUY_TAC_CHUNG.md](QUY_TAC_CHUNG.md).
+>
+> **Quy ước mặt bằng 1:1 cho bình đồ / app san gạt** (QUY_TAC_CHUNG mục 4.2): block `BLN` (tim cụm bu lông từng chân),
+> block `TIM TRU`, layer `MAIN` / `THIN` / `COT` / `MONG`, và **số trụ `M1`…`M4` layer `TEN TRU`** trong ô bản đế từng
+> chân - trùng tag `Mk` / tên "Móng trụ k" của khối IFC; vị trí trụ k theo `lech.model.QUAD` (1: −X+Y, 2: +X+Y,
+> 3: −X−Y, 4: +X−Y).
 
 Tài liệu này mô tả kiến trúc, quy ước và cách làm việc của app **VE_MONGBANCOSUON** (móng bản có dầm). Mục đích là
 dùng lại khi viết app cho loại móng khác: móng trụ, móng bản không dầm, móng cọc, móng neo…

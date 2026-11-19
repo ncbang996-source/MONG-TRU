@@ -150,12 +150,20 @@ phiên làm việc mới, đưa đường dẫn 2 file này kèm repo `MONG-TRU`
     | Đối tượng | Trong DXF |
     |---|---|
     | Chân móng | block `BLN` tại tim cụm bu lông neo từng chân (4 block) |
-    | Tim trụ | block `TIM TRU`, gốc (0,0), hình bên trong (POINT, vòng tròn) ở toạ độ thật, chèn tại 0,0 |
+    | Tim trụ (tim móng) | block `TIM TRU`, gốc (0,0), hình bên trong (POINT, vòng tròn) ở toạ độ thật, chèn tại 0,0 |
     | Bản đế | polyline kín layer `MAIN` (ô vuông lớn nhất quanh mỗi chân) |
     | Bê tông lót | polyline kín layer `THIN` |
     | Mã cột | chữ layer `COT`, nguyên mã |
     | Tên móng | chữ layer `MONG` |
     | Tên vị trí | không ghi `VI TRI` (phần mềm nhận lấy tên file DXF) |
+    | Số trụ từng chân | chữ `M1`…`M4` layer `TEN TRU` (tạo nếu chưa có), cao như chữ `COT`, góc 0, đặt **trong ô bản đế của đúng chân** (giữa dải vát phía ngoài, không đè `BLN`) |
+
+  - **Số trụ trong DXF phải trùng IFC xuất cùng lúc:** chữ `Mk` ↔ khối IfcFooting tên "Móng trụ k - <loại>", tag
+    `Mk`. Quy ước vị trí (một nguồn `lech.model.QUAD`, dùng chung cho DXF, IFC, móng 2 loại): trụ 1 (−X, +Y), trụ 2
+    (+X, +Y), trụ 3 (−X, −Y), trụ 4 (+X, −Y). Móng chân lệch (vd `MT65.0 3T35-35/1T35-45`, trụ 2 là T35-45): `M2` nằm
+    ở chân có móng T35-45. Đổi chân lệch (ô Vị trí trụ) thì DXF và IFC đổi cùng lúc vì cùng đọc một số liệu.
+  - Chữ nằm cùng hình móng: copy, xoay mặt bằng vào bình đồ thì chữ đi theo chân (không lật gương). App san gạt đọc
+    chữ `Mk` để đặt đúng khối IFC vào chân.
 
 ### 4.3 Excel khối lượng
 - Như HUONG_DAN_PHAT_TRIEN mục 4. Khối lượng thép trong bảng tổng kê đã gồm dự phòng. Dự phòng = 0 thì không ghi chú.
@@ -283,7 +291,8 @@ vát, thanh chống. Khác ở chỗ **4 trụ quá gần nhau nên gộp thành
     mẫu.
   - Thép lớp trên giữa các cổ có thêm thép mũ / thép tăng cường không.
 - **Khối lượng:** bê tông, đất, ván khuôn theo sheet `KL be tong` của Excel mẫu móng bản không sườn.
-- **Mặt bằng 1:1:** 4 block `BLN` vẫn đặt tại tim cụm bu lông từng cổ. Bản móng chung là **1** polyline `MAIN` bao cả
+- **Mặt bằng 1:1:** 4 block `BLN` vẫn đặt tại tim cụm bu lông từng cổ; chữ `M1`…`M4` (layer `TEN TRU`) theo cổ, trùng
+  khối IFC. Bản móng chung là **1** polyline `MAIN` bao cả
   4 chân: phải xác nhận phần mềm nhận chấp nhận 1 ô chung cho cả 4 chân. Đường bao đền bù B + 1 × L + 1.
 - **IFC:** 1 IfcFooting cho cả bản + 4 cổ (hay bản và cổ tách riêng) → hỏi người dùng.
 - **Khối lượng tổng hợp:** cột chiều sâu chôn móng, dài / rộng đền bù lấy theo bản chung.

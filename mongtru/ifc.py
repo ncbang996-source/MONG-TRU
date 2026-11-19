@@ -14,7 +14,7 @@ from .view3d import COL, Scene
 
 _B64 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_$"
 _NS = uuid.UUID("6f1d2c1e-5b8a-4c39-9a52-3f1e0b7c9d21")
-QUAD = {1: (-1, 1), 2: (1, 1), 3: (-1, -1), 4: (1, -1)}          # vị trí trụ 1..4 (trái trên, phải trên, ...)
+from .lech.model import QUAD  # noqa: E402  vị trí trụ 1..4 - một nguồn cho DXF, IFC, móng 2 loại
 # loại thép theo màu trong mô hình 3D: (tên, PredefinedType)
 BAR_KIND = {
     "slab_x": ("Thép bản đế phương X", "MAIN"), "slab_y": ("Thép bản đế phương Y", "MAIN"),

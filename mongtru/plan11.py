@@ -1,7 +1,8 @@
 """Mặt bằng móng tỷ lệ 1:1, đơn vị mét (1 đơn vị bản vẽ = 1 m) trong file DXF - để chép sang bản vẽ tổng mặt bằng /
 định vị. Theo quy ước cho phần mềm nhận: 4 block BLN (tim cụm bu lông từng trụ), block TIM TRU (gốc 0,0, hình ở toạ
 độ thật, chèn tại 0,0), bản đế polyline kín layer MAIN (ô vuông lớn nhất quanh mỗi chân), bê tông lót polyline kín
-layer THIN, mã cột chữ layer COT, tên móng chữ layer MONG (không ghi VI TRI: phần mềm nhận lấy tên file DXF). Kích thước thật (không rút ngắn khoảng cách tim như tờ in), gốc toạ độ tại tim móng, đặt bên trái tờ 1;
+layer THIN, mã cột chữ layer COT, tên móng chữ layer MONG (không ghi VI TRI: phần mềm nhận lấy tên file DXF),
+số trụ M1..M4 từng chân chữ layer TEN TRU (trùng tag Mk khối IFC "Móng trụ k"). Kích thước thật (không rút ngắn khoảng cách tim như tờ in), gốc toạ độ tại tim móng, đặt bên trái tờ 1;
 không in ra PDF. Chữ, kích thước ghi theo mm (DIMLFAC 1000) như các tờ bản vẽ."""
 from __future__ import annotations
 
@@ -13,7 +14,7 @@ from . import cad, model
 from .geom import Geo
 from .sheet1 import T_AXIS, T_BISECT, T_ROUTE
 
-QUAD = {1: (-1, 1), 2: (1, 1), 3: (-1, -1), 4: (1, -1)}
+from .lech.model import QUAD  # noqa: E402  vị trí trụ 1..4 - một nguồn cho DXF, IFC, móng 2 loại
 H_TXT = 0.20                    # cao chữ (m) - in tỷ lệ 1:100 ra chữ 2 mm
 DIMSTYLE = "MB_1_1_M"
 
@@ -49,7 +50,7 @@ def draw(doc, data, xr=-10.0, ym=148.5):
     ox, oy = xr - e, ym
     A = lambda x, y: (ox + x, oy + y)
     # quy ước trao đổi với phần mềm khác: block BLN (4 chân móng), block TIM TRU, layer MAIN / THIN / COT / MONG
-    for nm, col in (("THIN", 8), ("COT", 2), ("MONG", 3)):
+    for nm, col in (("THIN", 8), ("COT", 2), ("MONG", 3), ("TEN TRU", 4)):
         if nm not in doc.layers:
             doc.layers.add(nm, color=col)
     if "BLN" not in doc.blocks:                              # dấu chân móng: chữ thập + điểm tại gốc block
@@ -110,6 +111,11 @@ def draw(doc, data, xr=-10.0, ym=148.5):
                 msp.add_circle(A(cx + bx * o, cy + by * o), r, dxfattribs={"layer": "CHU"})
         msp.add_blockref("BLN", A(cx, cy), dxfattribs={"layer": "CHU"})              # chân móng = tim cụm bu lông
         tx(f"TRỤ {q}: {name}", xc, yc + sy * (B + ml + 0.2))           # phía ngoài bản đế (khe giữa 2 trụ có thể hẹp)
+        # số trụ cho app san gạt (trùng tag Mk của khối IFC "Móng trụ k"): trong ô bản đế, dải vát phía ngoài (xa
+        # block BLN ở tim cụm bu lông), chữ đứng, không xoay -> copy / xoay mặt bằng thì chữ đi theo chân
+        t = msp.add_text(f"M{q}", height=0.25, dxfattribs={"layer": "TEN TRU", "width": cad.WIDTH,
+                                                           "style": cad.STYLE})
+        t.set_placement(A(xc, yc + sy * 0.5 * (pm + B)), align=TextEntityAlignment.MIDDLE_CENTER)
         xs_ax.add(round(sx * T, 6))
         ys_ax.add(round(sy * T, 6))
     ln("TRUC", 0.0, -e, 0.0, e)                                          # chỉ trục qua tim móng
