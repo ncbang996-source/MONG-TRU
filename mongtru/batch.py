@@ -132,6 +132,7 @@ def summary_row(data) -> dict:
         bt, lot, dao, dap, vk, db = (m.vol_mong(data), m.vol_lot(data), m.vol_dao(data), m.vol_dap(data),
                                      m.area_vk(data), m.den_bu(data))
         hm = max(t["H1"] for t in data["TYPES"])
+        pha = 0.0                                          # móng 2 loại: chưa tính phá đá
         name = data.get("TENMONG") or m.type_name(data)
         dia = sorted({model.bolt_dia(m.type_params(data, i)) for i in range(2)})
     else:
@@ -142,6 +143,7 @@ def summary_row(data) -> dict:
         bt, lot, dao, dap, vk, db = (model.vol_mong(data), model.vol_lot(data), model.vol_dao(data),
                                      model.vol_dap(data), model.area_vk(data), model.den_bu(data))
         hm = data["H1"]
+        pha = model.vol_pha(data)
         name = model.type_name(data)
         dia = [model.bolt_dia(data)]
     for g in gs:
@@ -150,7 +152,7 @@ def summary_row(data) -> dict:
                 by[int(d + 0.5)] = by.get(int(d + 0.5), 0.0) + w * k
     return {"cot": str(data.get("COT", "")), "mong": name, "btm": str(data.get("BTM", "")),
             "btl": str(data.get("BTL", "")), "bt": bt, "lot": lot, "steel": by,
-            "bln": " + ".join(f"BLN M{d}" for d in dia), "dao": dao, "dap": dap, "vk": vk, "hm": hm,
+            "bln": " + ".join(f"BLN M{d}" for d in dia), "dao": dao, "pha": pha, "dap": dap, "vk": vk, "hm": hm,
             "db": db, "dp": data.get("DP", 0.0)}
 
 
@@ -168,7 +170,9 @@ def write_summary(rows, path):
     cols = [("TÊN CỘT", 14), ("TÊN MÓNG", 22), ("SỐ LƯỢNG", 9)]
     cols += [(f"{b}(m³)", 10) for b in btm] + [(f"{b}(m³)", 10) for b in btl]
     cols += [(f"Ø{d}(kg)", 10) for d in dias]
-    cols += [("Tổng khối lượng (kg)", 11), ("Bulong neo", 12), ("Đào đất(m³)", 10), ("Đắp đất(m³)", 10),
+    pha = any(r.get("pha", 0) > 1e-9 for _, r in rows)     # có móng phá đá: thêm cột Phá đá
+    cols += [("Tổng khối lượng (kg)", 11), ("Bulong neo", 12), ("Đào đất(m³)", 10)] + \
+        ([("Phá đá(m³)", 10)] if pha else []) + [("Đắp đất(m³)", 10),
              ("Ván khuôn(m²)", 11), ("Chiều sâu chôn móng (m)", 9), ("Dài (m)", 8), ("Rộng (m)", 8),
              ("Diện tích (m2)", 10)]
     n = len(cols)
@@ -192,7 +196,8 @@ def write_summary(rows, path):
         y = r0 + i
         vals = {"TÊN CỘT": r["cot"], "TÊN MÓNG": r["mong"], "SỐ LƯỢNG": q,
                 f"{r['btm']}(m³)": round(r["bt"], 2), f"{r['btl']}(m³)": round(r["lot"], 2),
-                "Bulong neo": r["bln"], "Đào đất(m³)": round(r["dao"], 2), "Đắp đất(m³)": round(r["dap"], 2),
+                "Bulong neo": r["bln"], "Đào đất(m³)": round(r["dao"], 2), "Phá đá(m³)": round(r.get("pha", 0.0), 2),
+                "Đắp đất(m³)": round(r["dap"], 2),
                 "Ván khuôn(m²)": round(r["vk"], 2), "Chiều sâu chôn móng (m)": r["hm"],
                 "Dài (m)": round(r["db"], 2), "Rộng (m)": round(r["db"], 2)}
         for d, w in r["steel"].items():

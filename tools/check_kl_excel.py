@@ -28,7 +28,9 @@ CASES = {"mau": {}, "b4": dict(B=4.0, BT=7.5), "lon": dict(B=5.5, BT=8.06, B1=1.
          "vat": dict(B=3.0, B2=1.2, BT=6.3, RC_N=32), "vat_lon": dict(B=4.5, B1=0.8, B2=1.6, BT=8.0, H1=3.0, H2=1.0,
                                                                           HB=0.9, HV=0.35, RC_N=24, RC_D=22),
          "vat_ho_chung": dict(B=3.0, B2=1.0, BT=3.6), "vat_rc12": dict(B2=1.0, RC_N=12),
-         "vat_rc28": dict(B=3.0, B2=1.2, BT=6.3, RC_N=28), "rc28_thang": dict(RC_N=28, B1=1.2, B2=1.2, B=3.0)}
+         "vat_rc28": dict(B=3.0, B2=1.2, BT=6.3, RC_N=28), "rc28_thang": dict(RC_N=28, B1=1.2, B2=1.2, B=3.0),
+         # phá đá (C25): đá thành đứng riêng từng trụ, đất phía trên mở mái (chung / riêng), toàn đá
+         "pha_da": dict(ROCK=0.5), "pha_da_chung": dict(B=3.0, B2=1.0, BT=3.6, ROCK=0.8), "pha_da_het": dict(ROCK=9.0)}
 base, _ = model.read_excel(os.path.join(ROOT, "samples", "D112-30.xls"))
 geos = {}
 for nm, ov in CASES.items():
@@ -66,11 +68,15 @@ for nm, g in geos.items():
     tk = openpyxl.load_workbook(os.path.join(calc, f"{nm}.xlsx"), data_only=True)["TONG KE"]
     vals = {tk.cell(2, j).value: tk.cell(3, j).value for j in range(1, tk.max_column + 1)}
     p = g.p
+    if model.rock_depth(p) <= 0 and "Phá đá (m³)" in vals:          # không có đá: không có cột Phá đá
+        bad += 1
+        print(f"[{nm}] thừa cột Phá đá")
     for key, v in ((f"{p['BTM']} (m³)", model.vol_mong(p)), (f"{p['BTL']} (m³)", model.vol_lot(p)),
                    ("Đào đất (m³)", model.vol_dao(p)), ("Đắp đất (m³)", model.vol_dap(p)),
+                   *([("Phá đá (m³)", model.vol_pha(p))] if model.rock_depth(p) > 0 else []),
                    ("Ván khuôn (m²)", model.area_vk(p)),
                    ("TỔNG K.LƯỢNG THÉP (kg)", sum(r["kg"] for r in g.kl) * g.dp())):
-        if abs(vals.get(key, 1e9) - v) > max(0.01, 0.0005 * v):
+        if abs((vals.get(key) if vals.get(key) is not None else 1e9) - v) > max(0.01, 0.0005 * v):
             bad += 1
             print(f"[{nm}] {key}: Excel {vals.get(key)} - chương trình {v:.3f}")
 # đổi Ø thanh chống ở THONG SO sang Ø14 (không có lúc xuất): phân loại có dòng Ø14, TONG KE báo xuất lại

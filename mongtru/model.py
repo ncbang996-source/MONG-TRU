@@ -34,6 +34,7 @@ CELLS_REBAR = [
 CELLS_COVER = {"COVER_B": "C22", "COVER": "C23"}   # mm trong Excel -> m
 CELL_RLAYERS = "K28"                               # "02 lớp"
 CELL_NPIER = "C24"                                 # số trụ móng
+CELL_ROCK = "C25"                                  # chiều sâu phá đá (m), trống / 0 = không có đá
 CELL_DP = "H29"                                    # dự phòng thép (%)
 
 HT_NAMES = ["ĐỠ", "NÉO GÓC", "NÉO DỪNG", "NÉO THẲNG", "NÉO HÃM", "NÉO GÓC"]   # thêm loại mới vào cuối (giữ số cũ); néo góc 90° (5): tên bản vẽ chỉ ghi "NÉO GÓC"
@@ -52,7 +53,7 @@ MPL = 0.1                 # gờ phẳng quanh chân cổ móng trên mặt bả
 def default_params() -> dict:
     return {
         "B": 2.7, "H1": 2.5, "H2": 0.5, "BT": 3.2, "B1": 0.7, "B2": 0.7, "HB": 0.7, "HV": 0.3,
-        "SLOPE": 0.5, "MPIT": 0.3, "NPIER": 4.0, "DP": 10.0,
+        "SLOPE": 0.5, "MPIT": 0.3, "NPIER": 4.0, "DP": 10.0, "ROCK": 0.0,
         "HT": 0, "BLN": "BLN-M36-250", "GD": "TKBVTC", "TENMONG": "",
         "SCALE": 100,
         "BTM": "B20", "BTL": "B7.5",
@@ -163,6 +164,8 @@ def read_excel(path: str, sheet: str = "TONG HOP", p: dict | None = None) -> tup
     v = val(CELL_HT)
     if isinstance(v, str):
         p["HT"] = ht_from_string(v)
+    v = val(CELL_ROCK)
+    p["ROCK"] = float(v) if _num(v) and v > 0 else 0.0
     bln = "".join(str(val(a) or "").strip() for a in CELLS_BLN)
     if bln:
         p["BLN"] = bln
@@ -256,9 +259,21 @@ def pad_dist(p) -> float:
     return p["BT"] + p["B2"] - p["B1"]
 
 
-def pit_joint(p) -> bool:
-    """True: đào chung 1 hố cho cả 4 trụ (miệng các hố riêng chạm nhau), False: đào từng trụ."""
-    gap = pad_dist(p) - 2 * (0.5 * p["B"] + p["MPIT"] + pit_depth(p) * p["SLOPE"])
+def rock_depth(p) -> float:
+    """Chiều sâu phá đá (m): phần dưới cùng của hố, thành đứng (không mở mái), phá riêng từng trụ."""
+    return min(max(float(p.get("ROCK", 0.0) or 0.0), 0.0), pit_depth(p))
+
+
+def earth_depth(p) -> float:
+    """Chiều sâu đào đất (m) = Hm + lót − phá đá: phần trên, mở mái như thường (đào chung / riêng)."""
+    return pit_depth(p) - rock_depth(p)
+
+
+def pit_joint(p, rock=True) -> bool:
+    """True: đào chung 1 hố cho cả 4 trụ (miệng các hố riêng chạm nhau), False: đào từng trụ.
+    Có phá đá: xét theo phần đào đất (mở mái từ mặt đá). rock=False: xét như không có đá (hình vẽ)."""
+    h = earth_depth(p) if rock else pit_depth(p)
+    gap = pad_dist(p) - 2 * (0.5 * p["B"] + p["MPIT"] + h * p["SLOPE"])
     return gap <= 0
 
 
@@ -273,15 +288,23 @@ def _frustum_rect(h, u, v, w, x):
 
 
 def vol_dao(p) -> float:
+    """Đào đất (m3): hố mở mái, chiều sâu Hm + lót − phá đá, đáy tại mặt đá."""
     a = pit_bottom(p)
-    t = a + 2 * pit_depth(p) * p["SLOPE"]
-    v1 = _frustum_rect(pit_depth(p), a, a, t, t)
+    h = earth_depth(p)
+    t = a + 2 * h * p["SLOPE"]
+    v1 = _frustum_rect(h, a, a, t, t)
     n = npier(p)
     return v1 * (n / 4.0 if pit_joint(p) else n)
 
 
+def vol_pha(p) -> float:
+    """Phá đá (m3): mỗi trụ 1 khối thành đứng, đáy (Bm + 2·mp)², cao = chiều sâu phá đá."""
+    return npier(p) * (p["B"] + 2 * p["MPIT"]) ** 2 * rock_depth(p)
+
+
 def vol_dap(p) -> float:
-    return vol_dao(p) - vol_lot(p) - (vol_mong(p) - vol_above(p))
+    """Đắp hoàn trả (m3) cả phần hố trong đá (đá phá ra tận dụng để đắp)."""
+    return vol_dao(p) + vol_pha(p) - vol_lot(p) - (vol_mong(p) - vol_above(p))
 
 
 def area_vk(p) -> float:
@@ -344,6 +367,8 @@ def validate(p) -> str | None:
         return "Cạnh cổ móng ở đỉnh b1 không được lớn hơn cạnh ở chân b2."
     if p["SLOPE"] < 1e-6:
         return "Hệ số mở mái phải > 0."
+    if float(p.get("ROCK", 0.0) or 0.0) < 0:
+        return "Chiều sâu phá đá phải >= 0."
     if p["MPIT"] < ML:
         return "Mở rộng đáy hố đào phải >= lót ra mỗi bên (0.1 m)."
     if p["HV"] > p["HB"]:
@@ -428,7 +453,7 @@ def pit_joint_draw(p) -> bool:
     """Hố đào THỂ HIỆN trên hình: theo lựa chọn PIT_DRAW, mặc định theo cách tính khối lượng (pit_joint).
     Không ảnh hưởng khối lượng đào / đắp."""
     m = int(p.get("PIT_DRAW", 0) or 0)
-    return pit_joint(p) if m == 0 else m == 1
+    return pit_joint(p, rock=False) if m == 0 else m == 1
 
 
 def is_tkkt(p) -> bool:

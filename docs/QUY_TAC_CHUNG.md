@@ -166,6 +166,7 @@ phiên làm việc mới, đưa đường dẫn 2 file này kèm repo `MONG-TRU`
     chữ `Mk` để đặt đúng khối IFC vào chân.
 
 ### 4.3 Excel khối lượng
+- **Phá đá** (ô C25, 0 / trống = không có đá): phần dưới cùng của hố dày t phá đá thành đứng, riêng từng trụ `n·(Bm + 2·mp)²·t`; phần trên `Hm + 0.1 − t` đào đất mở mái từ mặt đá, xét đào chung / riêng theo phần đất; đắp hoàn trả cả phần đá (đá phá tận dụng để đắp). Chỉ thêm dòng / cột Phá đá khi t > 0 (file cũ giữ nguyên). Bản vẽ không đổi. Móng 2 loại: chưa tính.
 - Như HUONG_DAN_PHAT_TRIEN mục 4. Khối lượng thép trong bảng tổng kê đã gồm dự phòng. Dự phòng = 0 thì không ghi chú.
 
 ### 4.4 IFC (BIM) - `ifc.py`

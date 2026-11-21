@@ -90,6 +90,7 @@ DIM_FIELDS = [
     ("B1", "b1 - cạnh cổ móng ở đỉnh (m)"), ("B2", "b2 - cạnh cổ móng ở chân (m)"),
     ("HB", "hb - cao bản đế tại gờ cổ móng (m)"), ("HV", "hv - cao bản đế ở mép (m)"),
     ("SLOPE", "Hệ số mở mái (tính KL)"), ("MPIT", "Mở rộng đáy hố đào (m)"),
+    ("ROCK", "Chiều sâu phá đá (m, 0 = không)"),
     ("NPIER", "Số trụ móng"),
 ]
 # (nhãn, khoá Ø, khoá bước)
@@ -616,8 +617,8 @@ class App(tk.Tk):
         self._npw = []
         for k, lbl in DIM_FIELDS:
             e = row(lbl, k, 8)
-            if k == "NPIER":                 # chế độ 2 loại: số trụ theo vị trí trụ
-                self._npw = [e, body.grid_slaves(row=r - 1, column=0)[0]]
+            if k in ("NPIER", "ROCK"):       # chế độ 2 loại: số trụ theo vị trí trụ; phá đá chưa tính
+                self._npw += [e, body.grid_slaves(row=r - 1, column=0)[0]]
             if k == "MPIT":              # trình bày hố đào + cách đào (tính khối lượng) ngay dưới mở rộng đáy hố đào
                 cb = row("Trình bày hố đào (hình vẽ)", "PIT_DRAW", 20, values=model.PIT_DRAW_NAMES)
                 cb.configure(state="readonly")
@@ -778,6 +779,8 @@ class App(tk.Tk):
         else:
             j, jd = model.pit_joint(p), model.pit_joint_draw(p)
             txt = "Hố đào (tính khối lượng): " + ("đào chung 1 hố cho 4 trụ" if j else "đào riêng từng trụ")
+            if model.rock_depth(p) > 1e-9:
+                txt += f"; phá đá {model.rock_depth(p):g} m riêng từng trụ"
             if jd != j:
                 txt += "  (hình vẽ thể hiện: " + ("đào chung" if jd else "đào riêng") + ")"
             self.l_pit.config(text=txt)

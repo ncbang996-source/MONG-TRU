@@ -67,10 +67,19 @@ for f, q in ((fs[0], 4), (fs[1], 1)):                       # D112-30 (4 trụ),
     assert all(abs(sh[f"%%C{d}"] - w) < 0.006 for d, w in r["steel"].items()), (sh, r["steel"])
     assert abs(sh["TỔNG K.LƯỢNG"] - sum(r["steel"].values())) < 0.006
     rows.append((q, r))
+# có móng phá đá: thêm cột Phá đá(m³) sau Đào đất, dòng TỔNG nhân số lượng
+d0, _, _ = batch.load(fs[0])
+rr = batch.summary_row(dict(d0, ROCK=0.5))
+assert rr["pha"] > 0 and abs(rr["pha"] - __import__("mongtru").model.vol_pha(dict(d0, ROCK=0.5))) < 1e-9
+fk2 = os.path.join(out, "kl_pha_da.xlsx")
+batch.write_summary([(2, rr)] + rows, fk2)
+hd2 = [c.value for c in openpyxl.load_workbook(fk2).active[2]]
+assert hd2[hd2.index("Đào đất(m³)") + 1] == "Phá đá(m³)", hd2
 fk = os.path.join(out, batch.SUMMARY_NAME)
 batch.write_summary(rows, fk)
 ws = openpyxl.load_workbook(fk).active
 hd = [c.value for c in ws[2]]
+assert "Phá đá(m³)" not in hd                                    # không có đá: không có cột
 assert hd[:3] == ["TÊN CỘT", "TÊN MÓNG", "SỐ LƯỢNG"] and "Ø8(kg)" in hd and hd[-3:] == ["Dài (m)", "Rộng (m)",
                                                                                         "Diện tích (m2)"], hd
 assert [ws.cell(row=3, column=1).value, ws.cell(row=3, column=3).value] == ["D112-30", 4]

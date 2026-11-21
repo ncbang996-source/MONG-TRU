@@ -186,3 +186,18 @@ r = export.build(dict(pv, HT=model.HT_90))                    # néo góc 90°: 
 tt = [t.dxf.text for t in r.doc.modelspace().query("TEXT") if t.dxf.text.startswith("HÌNH THỨC MÓNG CỘT")]
 assert tt and all("NÉO GÓC " in t and "90°" not in t for t in tt), tt
 print("OK - hinh thuc cot")
+# phá đá (ô C25): đá thành đứng riêng từng trụ ở đáy hố, đất phía trên mở mái từ mặt đá; đá tận dụng để đắp.
+# Số liệu móng 7.N111-47(30): Bm 4, Hm 3.2, d 1, Bt 7.75, b1 = b2 0.8, hb 0.8, hv 0.4, phá đá 0.5 m
+pr = dict(pv, B=4.0, H1=3.2, H2=1.0, BT=7.75, B1=0.8, B2=0.8, HB=0.8, HV=0.4, SLOPE=0.5, MPIT=0.3, NPIER=4.0)
+p0 = dict(pr, ROCK=0.0)
+assert abs(model.vol_dao(p0) - 649.79475) < 1e-6 and model.pit_joint(p0)        # = sheet KL Excel mẫu (không đá)
+p5 = dict(pr, ROCK=0.5)
+assert abs(model.rock_depth(p5) - 0.5) < 1e-12 and abs(model.earth_depth(p5) - 2.8) < 1e-9
+assert not model.pit_joint(p5) and model.pit_joint_draw(p5)        # đất nông hơn -> đào riêng; hình vẽ giữ như cũ
+assert abs(model.vol_pha(p5) - 4 * 4.6 ** 2 * 0.5) < 1e-9 and abs(model.vol_dao(p5) - 4 * 2.8 / 3 * (4.6 ** 2 + 7.4 ** 2 + 4.6 * 7.4)) < 1e-9
+assert abs(model.vol_dap(p5) - (model.vol_dao(p5) + model.vol_pha(p5) - model.vol_lot(p5)
+                                  - (model.vol_mong(p5) - model.vol_above(p5)))) < 1e-9
+ph = dict(pr, ROCK=9.0)                                                         # cả hố trong đá
+assert model.vol_dao(ph) == 0 and abs(model.vol_pha(ph) - 4 * 4.6 ** 2 * 3.3) < 1e-9
+assert model.validate(dict(pr, ROCK=-1.0))
+print("OK - pha da")

@@ -85,7 +85,9 @@ def export(p: dict, g: Geo, path: str):
     r = 4
     for i, h in enumerate(["STT", "Thông số", "Ký hiệu", "Giá trị", "Đơn vị"], 1):
         _cell(ws, r, i, h, bold=True, fill=HEAD, align=Alignment(horizontal="center", vertical="center"))
-    for k, (nm, sym, key, f, unit) in enumerate(PARAMS, 1):
+    rock = model.rock_depth(p) > 1e-9                     # có phá đá: thêm thông số, dòng khối lượng
+    prm = PARAMS + ([("Chiều sâu phá đá (thành đứng, phá riêng từng trụ)", "pd", "ROCK", 1, "m")] if rock else [])
+    for k, (nm, sym, key, f, unit) in enumerate(prm, 1):
         r += 1
         v = p[key] * f if key else f
         _cell(ws, r, 1, k, align=Alignment(horizontal="center"))
@@ -93,7 +95,7 @@ def export(p: dict, g: Geo, path: str):
         _cell(ws, r, 3, sym, align=Alignment(horizontal="center"))
         _cell(ws, r, 4, v, "0.000" if unit == "m" else "0.##", fill=INPUT)
         _cell(ws, r, 5, unit, align=Alignment(horizontal="center"))
-        wb.defined_names[NAME[sym]] = DefinedName(NAME[sym], attr_text=f"'THONG SO'!$D${r}")
+        wb.defined_names[f"TS_{sym}"] = DefinedName(f"TS_{sym}", attr_text=f"'THONG SO'!$D${r}")
     r += 2
     ws.cell(row=r, column=2, value="TRỌNG LƯỢNG THÉP (TCVN 1651-2018)").font = B
     r += 1
@@ -165,13 +167,18 @@ def export(p: dict, g: Geo, path: str):
     a = line("", "Cạnh gờ quanh chân cổ móng", "a", "=TS_b2+2*TS_mpl", "b2 + 2·mpl", "m")
     hc = line("", "Chiều cao cổ móng (từ mặt gờ)", "hc", "=TS_Hm+TS_d-TS_hb", "Hm + d − hb", "m")
     hd = line("", "Chiều sâu hố đào", "Hd", "=TS_Hm+TS_tl", "Hm + dày lót", "m")
+    he = hd
+    if rock:
+        hpd = line("", "Chiều sâu phá đá", "Hpd", f"=MIN(MAX(TS_pd,0),{hd})", "phần dưới cùng của hố, <= Hd", "m")
+        he = line("", "Chiều sâu đào đất", "He", f"={hd}-{hpd}", "Hd − Hpd (mở mái từ mặt đá)", "m")
     dd = line("", "Khoảng cách tim bản đế", "D", "=TS_Bt+TS_b2-TS_b1",
               "Bt + (b2 − b1): cổ vát ra phía ngoài, mặt trong thẳng đứng", "m")
-    kh = line("", "Khoảng hở giữa miệng 2 hố đào riêng", "kh", f"={dd}-2*(0.5*TS_Bm+TS_mp+{hd}*TS_m)",
-              "D − 2·(Bm/2 + mp + Hd·m); <= 0 thì đào chung 1 hố cho 4 trụ", "m")
+    H_ = "He" if rock else "Hd"
+    kh = line("", "Khoảng hở giữa miệng 2 hố đào riêng", "kh", f"={dd}-2*(0.5*TS_Bm+TS_mp+{he}*TS_m)",
+              f"D − 2·(Bm/2 + mp + {H_}·m); <= 0 thì đào chung 1 hố cho 4 trụ", "m")
     a1 = line("", "Cạnh đáy hố đào", "a1", f"=IF({kh}>0,TS_Bm+2*TS_mp,{dd}+TS_Bm+2*TS_mp)",
               "Hố riêng: Bm + 2·mp; hố chung: D + Bm + 2·mp", "m")
-    a2 = line("", "Cạnh miệng hố đào", "a2", f"={a1}+2*TS_m*{hd}", "a1 + 2·m·Hd", "m")
+    a2 = line("", "Cạnh miệng hố đào", "a2", f"={a1}+2*TS_m*{he}", f"a1 + 2·m·{H_}", "m")
     nh = line("", "Số hố đào", "nh", f"=IF({kh}>0,TS_n,TS_n/4)", "Hố riêng: n; hố chung: n/4", "hố")
     bt_ = line("", "Cạnh cổ móng tại mặt đất", "bd", "=TS_b2+(TS_b1-TS_b2)*(TS_Hm-TS_hb)/(TS_Hm+TS_d-TS_hb)",
                "b2 + (b1 − b2)·(Hm − hb)/hc", "m")
@@ -183,13 +190,21 @@ def export(p: dict, g: Geo, path: str):
     vl = line(2, f"Bê tông lót {p['BTL']}", "Vlot", "=TS_n*(TS_Bm+2*TS_ml)^2*TS_tl", "n·(Bm + 2·ml)²·tl", "m3", True)
 
     sec("C. ĐẤT, VÁN KHUÔN")
-    vd = line(3, "Đào đất hố móng", "Vdao", f"={nh}*{hd}/3*({a1}^2+{a2}^2+{a1}*{a2})",
-              "nh · Hd/3·(a1² + a2² + a1·a2)", "m3", True)
+    vd = line(3, "Đào đất hố móng", "Vdao", f"={nh}*{he}/3*({a1}^2+{a2}^2+{a1}*{a2})",
+              f"nh · {H_}/3·(a1² + a2² + a1·a2)", "m3", True)
     va = line("", "Thể tích cổ móng trên mặt đất", "Vtr", f"=TS_n*TS_d/3*({bt_}^2+TS_b1^2+{bt_}*TS_b1)",
               "n·d/3·(bd² + b1² + bd·b1)", "m3")
-    vdp = line(4, "Đắp đất hoàn trả hố móng", "Vdap", f"={vd}-{vl}-({vb}-{va})", "Vdao − Vlot − (Vbt − Vtr)", "m3", True)
-    line(5, "Đất thừa", "Vthua", f"={vd}-{vdp}", "Vdao − Vdap", "m3", True)
-    line(6, "Ván khuôn móng", "VK",
+    if rock:
+        vpd = line(4, "Phá đá hố móng (thành đứng, riêng từng trụ)", "Vpd", f"=TS_n*(TS_Bm+2*TS_mp)^2*{hpd}",
+                   "n·(Bm + 2·mp)²·Hpd", "m3", True)
+        vdp = line(5, "Đắp hoàn trả hố móng (tận dụng đá phá)", "Vdap", f"={vd}+{vpd}-{vl}-({vb}-{va})",
+                   "Vdao + Vpd − Vlot − (Vbt − Vtr)", "m3", True)
+        line(6, "Đất, đá thừa", "Vthua", f"={vd}+{vpd}-{vdp}", "Vdao + Vpd − Vdap", "m3", True)
+    else:
+        vdp = line(4, "Đắp đất hoàn trả hố móng", "Vdap", f"={vd}-{vl}-({vb}-{va})", "Vdao − Vlot − (Vbt − Vtr)",
+                   "m3", True)
+        line(5, "Đất thừa", "Vthua", f"={vd}-{vdp}", "Vdao − Vdap", "m3", True)
+    line(7 if rock else 6, "Ván khuôn móng", "VK",
          f"=TS_n*((TS_b1+TS_b2)*({hc}+SQRT({hc}^2+(TS_b2-TS_b1)^2))+4*TS_Bm*TS_hv)",
          "n·[2 mặt cổ đứng + 2 mặt cổ vát: (b1 + b2)·(hc + √(hc² + (b2 − b1)²)) + 4·Bm·hv] "
          "(mặt vát bản đế không ghép ván khuôn)", "m2", True)
@@ -391,7 +406,8 @@ def _summary(wb, p, rows, rdia, rtot):
         cols.append((f"Ø{d} (kg)", f"={K}$H${rdia[d]}", "0.00"))
     cols += [("TỔNG K.LƯỢNG THÉP (kg)", f"={K}$H${rtot}", "0.00"),
              ("BULONG NEO", model.bolt_text(p), None),
-             ("Đào đất (m³)", f"={K}{rows['Vdao']}", "0.00"),
+             ("Đào đất (m³)", f"={K}{rows['Vdao']}", "0.00")] + \
+            ([("Phá đá (m³)", f"={K}{rows['Vpd']}", "0.00")] if "Vpd" in rows else []) + [
              ("Đắp đất (m³)", f"={K}{rows['Vdap']}", "0.00"),
              ("Ván khuôn (m²)", f"={K}{rows['VK']}", "0.00"),
              ("Rộng đền bù (m)", "=TS_Bt+TS_b2-TS_b1+TS_Bm+2*0.5", "0.00"),

@@ -53,6 +53,8 @@ App Windows chạy offline, vẽ nhanh bản vẽ **móng trụ (4 trụ) dùng 
 | H25 / I25 | Thép chủ cổ móng: Ø / tổng số thanh | H26..I28, K28 | Đai, đai phụ, lưới đầu trụ, số lớp lưới |
 
 ## Quy tắc tính
+
+- **Phá đá (ô C25 "Chiều sâu phá đá", 0 / trống = không có đá):** hố đào sâu Hm + 0.1 (lót). Phần dưới cùng dày bằng chiều sâu phá đá là phá đá thành đứng (không mở mái), phá riêng từng trụ: n·(Bm + 2·mp)²·t. Phần trên (Hm + 0.1 − t) đào đất như thường, mở mái từ mặt đá; xét đào chung / riêng theo chiều sâu phần đất. Đắp hoàn trả cả phần hố trong đá (tận dụng đá phá): Vđắp = Vđào + Vphá − Vlót − (Vbt − Vbt trên mặt đất); đất, đá thừa = Vđào + Vphá − Vđắp. Excel khối lượng có thêm dòng Phá đá (TONG KE: cột Phá đá), khối lượng tổng hợp dự án có cột Phá đá. Bản vẽ không đổi (hố đào vẽ như không có đá). Móng 2 loại: chưa tính phá đá.
 - **Bê tông, lót, đào, đắp, ván khuôn:** theo công thức sheet `KL` của Excel mẫu (cho cả móng = số trụ × 1 trụ).
   - Gờ phẳng quanh chân cổ móng 100, lót dày 100 tràn ra 100 mỗi bên.
   - Hố đào (tính khối lượng): nếu miệng các hố riêng chạm nhau (theo hệ số mái C18) thì đào chung 1 hố cho 4 trụ, ngược lại đào riêng từng trụ. Không phụ thuộc lựa chọn trình bày hố đào trên hình. Mái hố vẽ 1:0,5.
