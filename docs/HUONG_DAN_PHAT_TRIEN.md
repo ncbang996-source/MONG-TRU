@@ -109,7 +109,7 @@ Nguyên tắc:
 
 ### Đối tượng kéo thả (chế độ "Sắp xếp")
 - `with c.group("tên", "nhãn"):` bọc cả 1 hình. `with c.item("tên", "nhãn"):` bọc chữ, dim, tag, bảng.
-- Dịch chuyển lưu theo id (`s1.plan.callout3`…) vào `<file Excel>.layout.json`. Điểm có `fixed=True` (mũi leader,
+- Dịch chuyển lưu theo id (`s1.plan.callout3`…) vào `<file Excel>.layout.json` (khoá `offsets`; khoá `scale` = tỷ lệ tờ 1 chọn tay, chỉ lưu khi khác tỷ lệ tự chọn; đọc / ghi qua `batch.read_layout` / `write_layout` / `saved_scale`, dùng chung cho app và xuất đồng loạt). Điểm có `fixed=True` (mũi leader,
   điểm đo dim) không đi theo item.
 - App hỗ trợ: Ctrl+nhấp để chọn nhiều đối tượng, Ctrl+Z / Ctrl+Y, chuột phải để về vị trí mặc định.
 

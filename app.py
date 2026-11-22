@@ -50,32 +50,19 @@ def save_settings(s):
 
 
 def layout_path(xls):
-    return os.path.splitext(xls)[0] + ".layout.json" if xls else None
+    return batch.layout_path(xls)
 
 
 def load_layout(xls):
     """Vị trí đã dịch chuyển, lưu cạnh file Excel."""
-    pth = layout_path(xls)
     try:
-        with open(pth, encoding="utf-8") as f:
-            d = json.load(f)
-        return {k: [float(v[0]), float(v[1])] for k, v in d.get("offsets", {}).items()}
+        return {k: [float(v[0]), float(v[1])] for k, v in batch.read_layout(xls).get("offsets", {}).items()}
     except Exception:
         return {}
 
 
 def save_layout(xls, offsets):
-    pth = layout_path(xls)
-    if not pth:
-        return
-    try:
-        if offsets:
-            with open(pth, "w", encoding="utf-8") as f:
-                json.dump({"offsets": offsets}, f, ensure_ascii=False, indent=1)
-        elif os.path.isfile(pth):
-            os.remove(pth)
-    except OSError:
-        pass
+    batch.write_layout(xls, offsets=offsets)
 
 
 def default_frame():
@@ -645,7 +632,8 @@ class App(tk.Tk):
         row("Dự phòng thép (%)", "DP", 6)
         head("4. Bản vẽ")
         ttk.Label(body, text="Tỷ lệ tờ 1 (A-A, mặt bằng) 1/").grid(row=r, column=0, sticky="w", padx=(10, 4))
-        ttk.Combobox(body, textvariable=self._var("SCALE"), values=[str(s) for s in model.SCALES], width=6,
+        self._var("SCALE").trace_add("write", lambda *a: self._remember_scale())
+        ttk.Combobox(body, textvariable=self.vars["SCALE"], values=[str(s) for s in model.SCALES], width=6,
                      state="readonly").grid(row=r, column=1, sticky="w")
         ttk.Button(body, text="Tự chọn", command=self.auto_scale, style="Small.TButton").grid(row=r, column=2, sticky="w")
         r += 1
@@ -785,6 +773,18 @@ class App(tk.Tk):
                 txt += "  (hình vẽ thể hiện: " + ("đào chung" if jd else "đào riêng") + ")"
             self.l_pit.config(text=txt)
         return None if err else p
+
+    def _remember_scale(self):
+        """Tỷ lệ chọn tay khác tỷ lệ tự chọn -> lưu cạnh file Excel để mở lại / xuất đồng loạt vẫn giữ."""
+        if getattr(self, "_filling", False) or not self.xls:
+            return
+        try:
+            p = self._collect()
+            s = int(float(self.vars["SCALE"].get()))
+            auto = (lmodel if self.mp else model).auto_scale(p)
+        except Exception:
+            return
+        batch.write_layout(self.xls, scale=None if s == auto else s)
 
     def auto_scale(self):
         try:
@@ -938,7 +938,7 @@ class App(tk.Tk):
             if lmodel.detect(path):                   # file móng 2 loại (2 khối "Móng:" ở sheet TONG HOP)
                 mp, warn = lmodel.read_excel(path)
                 if lmodel.validate(mp) is None:
-                    mp["SCALE"] = lmodel.auto_scale(mp)
+                    mp["SCALE"] = batch.saved_scale(path) or lmodel.auto_scale(mp)
                 p = lui.fill_params(mp, 0)
             else:
                 mp = None
@@ -946,7 +946,8 @@ class App(tk.Tk):
                 # chỉ giữ các thông số không có trong Excel (mã số bản vẽ, tuỳ chọn trình bày)
                 p, warn = model.read_excel(path, "TONG HOP", model.fresh_params(self.p))
                 if model.validate(p) is None:
-                    p["SCALE"] = model.auto_scale(p)          # mở file mới: luôn tự chọn tỷ lệ
+                    # mở file: tỷ lệ đã chọn tay cho file này (lưu trong .layout.json), không có thì tự chọn
+                    p["SCALE"] = batch.saved_scale(path) or model.auto_scale(p)
         except Exception as ex:
             messagebox.showerror(APP_NAME, f"Không đọc được file Excel:\n{ex}")
             return

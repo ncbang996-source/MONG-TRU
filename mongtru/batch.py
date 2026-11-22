@@ -2,6 +2,7 @@
 PDF, DXF, Excel khối lượng, IFC cho từng file - cùng cách đọc và cùng vị trí đã sắp xếp như khi mở từng file trong app."""
 from __future__ import annotations
 
+import json
 import os
 
 from . import export, ifc, kl_excel, model
@@ -37,6 +38,50 @@ def find_excel(folder, sub=False) -> list:
     return out
 
 
+def layout_path(xls):
+    """File bố trí lưu cạnh file Excel: vị trí đã kéo dịch + tỷ lệ tự chọn."""
+    return os.path.splitext(xls)[0] + ".layout.json" if xls else None
+
+
+def read_layout(xls) -> dict:
+    try:
+        with open(layout_path(xls), encoding="utf-8") as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def write_layout(xls, **kw):
+    """Cập nhật các khoá của file bố trí (giá trị rỗng / None -> xoá khoá); hết khoá thì xoá file."""
+    pth = layout_path(xls)
+    if not pth:
+        return
+    d = read_layout(xls)
+    for k, v in kw.items():
+        if v:
+            d[k] = v
+        else:
+            d.pop(k, None)
+    try:
+        if d:
+            with open(pth, "w", encoding="utf-8") as f:
+                json.dump(d, f, ensure_ascii=False, indent=1)
+        elif os.path.isfile(pth):
+            os.remove(pth)
+    except OSError:
+        pass
+
+
+def saved_scale(xls):
+    """Tỷ lệ tờ 1 người dùng đã chọn cho file này (None: dùng tỷ lệ tự chọn)."""
+    try:
+        s = int(read_layout(xls).get("scale") or 0)
+    except (TypeError, ValueError):
+        return None
+    return s if s in model.SCALES else None
+
+
 def load(path, base=None):
     """Đọc 1 file Excel như nút Mở Excel: (thông số, cảnh báo, móng 2 loại?). Số liệu sai -> ValueError."""
     try:
@@ -53,13 +98,13 @@ def _load(path, base):
         err = lmodel.validate(data)
         if err:
             raise ValueError(err)
-        data["SCALE"] = lmodel.auto_scale(data)
+        data["SCALE"] = saved_scale(path) or lmodel.auto_scale(data)
         return data, warn, True
     data, warn = model.read_excel(path, "TONG HOP", model.fresh_params(base or model.default_params()))
     err = model.validate(data)
     if err:
         raise ValueError(err)
-    data["SCALE"] = model.auto_scale(data)
+    data["SCALE"] = saved_scale(path) or model.auto_scale(data)
     return data, warn, False
 
 

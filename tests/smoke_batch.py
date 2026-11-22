@@ -102,4 +102,19 @@ try:
     raise AssertionError("file dự án sai phải báo lỗi")
 except ValueError:
     pass
+# tỷ lệ chọn tay lưu trong .layout.json cạnh file Excel: mở lại / xuất đồng loạt giữ tỷ lệ đó, giữ vị trí kéo dịch
+f0, f2 = fs[0], fs[1]                                   # 4 trụ giống nhau, móng 2 loại
+for f in (f0, f2):
+    a = batch.load(f)[0]["SCALE"]
+    s = next(x for x in __import__("mongtru").model.SCALES if x != a)
+    batch.write_layout(f, offsets={"s1.tl": [1.0, 2.0]})
+    batch.write_layout(f, scale=s)
+    assert batch.load(f)[0]["SCALE"] == s and batch.read_layout(f)["offsets"] == {"s1.tl": [1.0, 2.0]}
+    assert batch.export_file(f, os.path.join(d, "SC"), ["pdf"]).data["SCALE"] == s
+    batch.write_layout(f, scale=None)                    # bấm Tự chọn (= tỷ lệ tự chọn): bỏ lưu
+    assert batch.load(f)[0]["SCALE"] == a and "scale" not in batch.read_layout(f)
+    batch.write_layout(f, scale=33)                      # tỷ lệ không có trong danh sách: bỏ qua
+    assert batch.load(f)[0]["SCALE"] == a
+    batch.write_layout(f, scale=None, offsets=None)
+    assert not os.path.exists(batch.layout_path(f))
 print("OK - xuat dong loat")

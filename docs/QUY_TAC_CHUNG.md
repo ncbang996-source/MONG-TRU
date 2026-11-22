@@ -84,7 +84,7 @@ phiên làm việc mới, đưa đường dẫn 2 file này kèm repo `MONG-TRU`
   - tên file dự án (hoặc "Dự án chưa lưu");
   - danh sách móng, ◀ ▶, số thứ tự "i/N móng";
   - các nút + Thêm…, − Bớt (không xoá file Excel), Lưu, Đóng. Không đặt nút xuất ở đây vì đã có trong menu Xuất.
-- Chọn móng thì mở file Excel đó, kèm vị trí sắp xếp đã lưu riêng của nó (`<file>.layout.json`).
+- Chọn móng thì mở file Excel đó, kèm vị trí sắp xếp và tỷ lệ chọn tay đã lưu riêng của nó (`<file>.layout.json`, khoá `offsets`, `scale`). Mọi lựa chọn người dùng sửa tay mà Excel không có phải lưu theo file như vậy, không được mất khi chuyển móng.
 
 ### 2.3 Bảng xuất đồng loạt (Thư mục dự án / Dự án) - `BatchDialog`
 - Thư mục: quét file Excel (tuỳ chọn gồm thư mục con), **xếp theo số tự nhiên** (1, 2, …, 9, 10 - hàm

@@ -37,6 +37,7 @@ App Windows chạy offline, vẽ nhanh bản vẽ **móng trụ (4 trụ) dùng 
 - **Mô hình 3D:** tab riêng, bê tông trong suốt, bật/tắt từng nhóm thép, xem toàn móng hoặc 1 trụ.
 - **Giao diện:** cửa sổ hẹp thì thanh nút tự xuống dòng; icon app hiện đúng ở thanh taskbar.
 - **Sắp xếp (kéo thả):** nhấp chọn rồi kéo, hoặc dùng phím mũi tên (1 mm, giữ Shift: 5 mm). Ctrl+Z / Ctrl+Y hoàn tác / làm lại. Vị trí lưu vào `<tên Excel>.layout.json`.
+- **Tỷ lệ tờ 1:** mở file thì app tự chọn tỷ lệ; nếu chọn tay tỷ lệ khác, tỷ lệ đó cũng lưu vào `<tên Excel>.layout.json` nên chuyển sang móng khác rồi quay lại, mở lại file hay xuất đồng loạt vẫn giữ. Bấm **Tự chọn** để trở về tỷ lệ tự chọn (bỏ lưu).
 
 ## Ô đọc từ sheet TONG HOP
 | Ô | Thông số | Ô | Thông số |
