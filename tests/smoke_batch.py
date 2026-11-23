@@ -67,6 +67,12 @@ for f, q in ((fs[0], 4), (fs[1], 1)):                       # D112-30 (4 trụ),
     assert all(abs(sh[f"%%C{d}"] - w) < 0.006 for d, w in r["steel"].items()), (sh, r["steel"])
     assert abs(sh["TỔNG K.LƯỢNG"] - sum(r["steel"].values())) < 0.006
     rows.append((q, r))
+# cột Chiều sâu chôn móng = chiều sâu hố đào (Hm + 0.1 lót), như ô "Chiều sâu hố đào" sheet TONG HOP KL của Excel tính toán
+d0, _, _ = batch.load(fs[0])
+assert abs(batch.summary_row(d0)["hm"] - (d0["H1"] + 0.1)) < 1e-9
+dm, _, _ = batch.load(fs[1])
+assert abs(batch.summary_row(dm)["hm"] - __import__("mongtru.lech.model").lech.model.pit_depth_max(dm)) < 1e-9
+assert batch.summary_row(dm)["hm"] >= max(t["H1"] for t in dm["TYPES"]) + 0.1 - 1e-9
 # có móng phá đá: thêm cột Phá đá(m³) sau Đào đất, dòng TỔNG nhân số lượng
 d0, _, _ = batch.load(fs[0])
 rr = batch.summary_row(dict(d0, ROCK=0.5))

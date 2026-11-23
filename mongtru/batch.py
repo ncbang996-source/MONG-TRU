@@ -176,7 +176,7 @@ def summary_row(data) -> dict:
         m = lmodel
         bt, lot, dao, dap, vk, db = (m.vol_mong(data), m.vol_lot(data), m.vol_dao(data), m.vol_dap(data),
                                      m.area_vk(data), m.den_bu(data))
-        hm = max(t["H1"] for t in data["TYPES"])
+        hm = m.pit_depth_max(data)                         # sâu nhất: Hm + lót (+ hạ cao độ)
         pha = 0.0                                          # móng 2 loại: chưa tính phá đá
         name = data.get("TENMONG") or m.type_name(data)
         dia = sorted({model.bolt_dia(m.type_params(data, i)) for i in range(2)})
@@ -187,7 +187,7 @@ def summary_row(data) -> dict:
         k = gs[0].dp()
         bt, lot, dao, dap, vk, db = (model.vol_mong(data), model.vol_lot(data), model.vol_dao(data),
                                      model.vol_dap(data), model.area_vk(data), model.den_bu(data))
-        hm = data["H1"]
+        hm = model.pit_depth(data)                         # Hm + 0.1 bê tông lót = chiều sâu hố đào
         pha = model.vol_pha(data)
         name = model.type_name(data)
         dia = [model.bolt_dia(data)]
@@ -243,7 +243,7 @@ def write_summary(rows, path):
                 f"{r['btm']}(m³)": round(r["bt"], 2), f"{r['btl']}(m³)": round(r["lot"], 2),
                 "Bulong neo": r["bln"], "Đào đất(m³)": round(r["dao"], 2), "Phá đá(m³)": round(r.get("pha", 0.0), 2),
                 "Đắp đất(m³)": round(r["dap"], 2),
-                "Ván khuôn(m²)": round(r["vk"], 2), "Chiều sâu chôn móng (m)": r["hm"],
+                "Ván khuôn(m²)": round(r["vk"], 2), "Chiều sâu chôn móng (m)": round(r["hm"], 2),
                 "Dài (m)": round(r["db"], 2), "Rộng (m)": round(r["db"], 2)}
         for d, w in r["steel"].items():
             vals[f"Ø{d}(kg)"] = round(w, 2)
